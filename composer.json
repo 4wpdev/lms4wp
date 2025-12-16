@@ -1,0 +1,41 @@
+{
+	"name": "4wpdev/lms4wp",
+	"description": "LMS platform for learning your favorite programming language. WordPress plugin for educational courses and skill development.",
+	"type": "wordpress-plugin",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "4wp.dev",
+			"email": "info@4wp.dev",
+			"homepage": "https://4wp.dev"
+		}
+	],
+	"require": {
+		"php": ">=8.0",
+		"composer/installers": "^2.0"
+	},
+	"require-dev": {
+		"phpunit/phpunit": "^10.0",
+		"wp-coding-standards/wpcs": "^3.0"
+	},
+	"autoload": {
+		"psr-4": {
+			"ForWP\\LMS\\": "includes/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"ForWP\\LMS\\Tests\\": "tests/"
+		}
+	},
+	"config": {
+		"allow-plugins": {
+			"composer/installers": true
+		},
+		"optimize-autoloader": true,
+		"sort-packages": true
+	},
+	"minimum-stability": "stable",
+	"prefer-stable": true
+}
+

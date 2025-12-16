@@ -1,0 +1,28 @@
+{
+	"name": "lms4wp",
+	"version": "1.0.0",
+	"description": "LMS platform for learning your favorite programming language",
+	"author": "4wp.dev",
+	"license": "MIT",
+	"scripts": {
+		"build": "wp-scripts build",
+		"start": "wp-scripts start",
+		"packages-update": "wp-scripts packages-update",
+		"lint:js": "wp-scripts lint-js",
+		"lint:css": "wp-scripts lint-style",
+		"format:js": "wp-scripts format",
+		"format:css": "wp-scripts format-style"
+	},
+	"devDependencies": {
+		"@wordpress/scripts": "^27.0.0",
+		"@types/node": "^20.0.0",
+		"typescript": "^5.0.0"
+	},
+	"dependencies": {
+		"@wordpress/blocks": "^13.0.0",
+		"@wordpress/components": "^28.0.0",
+		"@wordpress/element": "^6.0.0",
+		"@wordpress/i18n": "^5.0.0"
+	}
+}
+
