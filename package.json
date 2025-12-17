@@ -11,12 +11,15 @@
 		"lint:js": "wp-scripts lint-js",
 		"lint:css": "wp-scripts lint-style",
 		"format:js": "wp-scripts format",
-		"format:css": "wp-scripts format-style"
+		"format:css": "wp-scripts format-style",
+		"build:css": "sass assets/scss:assets/css --style=expanded --source-map",
+		"watch:css": "sass assets/scss:assets/css --watch --style=expanded --source-map"
 	},
 	"devDependencies": {
 		"@wordpress/scripts": "^27.0.0",
 		"@types/node": "^20.0.0",
-		"typescript": "^5.0.0"
+		"typescript": "^5.0.0",
+		"sass": "^1.77.0"
 	},
 	"dependencies": {
 		"@wordpress/blocks": "^13.0.0",
@@ -25,4 +28,3 @@
 		"@wordpress/i18n": "^5.0.0"
 	}
 }
-

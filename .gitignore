@@ -8,6 +8,11 @@
 *.min.js
 *.min.css
 
+# Compiled CSS (from SCSS)
+/assets/css/*.css
+/assets/css/*.css.map
+!assets/css/.gitkeep
+
 # IDE
 .idea/
 .vscode/
@@ -44,4 +49,5 @@ wp-config.php
 # Temporary files
 *.tmp
 *.temp
+
 

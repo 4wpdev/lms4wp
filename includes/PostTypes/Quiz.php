@@ -71,14 +71,15 @@ class Quiz
 			'public'             => true,
 			'publicly_queryable' => true,
 			'show_ui'            => true,
-			'show_in_menu'       => true,
+			'show_in_menu'       => true, // Show as separate menu
 			'show_in_rest'       => true,
 			'query_var'          => true,
 			'rewrite'            => ['slug' => 'quizzes'],
-			'capability_type'    => 'post',
+			'capability_type'    => 'lms_quiz',
+			'map_meta_cap'       => true,
 			'has_archive'        => true,
 			'hierarchical'       => false,
-			'menu_position'      => 22,
+			'menu_position'      => 29, // After Lessons (28)
 			'menu_icon'          => 'dashicons-clipboard',
 			'supports'           => [
 				'title',
@@ -343,4 +344,5 @@ class Quiz
 		}
 	}
 }
+
 

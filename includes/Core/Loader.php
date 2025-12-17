@@ -38,6 +38,14 @@ class Loader
 		require_once $includes_dir . 'PostTypes/Lesson.php';
 		require_once $includes_dir . 'PostTypes/Quiz.php';
 
+		// Users
+		if (file_exists($includes_dir . 'Users/Roles.php')) {
+			require_once $includes_dir . 'Users/Roles.php';
+		}
+		if (file_exists($includes_dir . 'Users/EnrollmentService.php')) {
+			require_once $includes_dir . 'Users/EnrollmentService.php';
+		}
+
 		// Helpers (load if exists)
 		if (file_exists($includes_dir . 'Helpers/Utils.php')) {
 			require_once $includes_dir . 'Helpers/Utils.php';
@@ -94,6 +102,9 @@ class Loader
 		if (file_exists($includes_dir . 'WooCommerce/WooBootstrap.php')) {
 			require_once $includes_dir . 'WooCommerce/WooBootstrap.php';
 		}
+		if (file_exists($includes_dir . 'WooCommerce/MyAccount.php')) {
+			require_once $includes_dir . 'WooCommerce/MyAccount.php';
+		}
 
 		// REST (load if exists)
 		if (file_exists($includes_dir . 'REST/MCPBridgeController.php')) {
@@ -102,8 +113,11 @@ class Loader
 
 		// Admin (load if exists and in admin)
 		if (is_admin()) {
+			// Menu is always required
+			require_once $includes_dir . 'Admin/Menu.php';
+			
+			// Other admin files (load if exists)
 			$admin_files = [
-				'Admin/Menu.php',
 				'Admin/Settings.php',
 				'Admin/CourseProductUI.php',
 			];
@@ -120,6 +134,7 @@ class Loader
 				'Frontend/Templates.php',
 				'Frontend/Shortcodes.php',
 				'Frontend/AccessControl.php',
+				'Frontend/CourseEnrollment.php',
 			];
 			foreach ($frontend_files as $frontend_file) {
 				if (file_exists($includes_dir . $frontend_file)) {

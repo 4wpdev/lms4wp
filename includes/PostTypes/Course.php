@@ -73,15 +73,16 @@ class Course
 			'public'             => true,
 			'publicly_queryable' => true,
 			'show_ui'            => true,
-			'show_in_menu'       => true,
+			'show_in_menu'       => true, // Show as separate menu
 			'show_in_rest'       => true,
 			'query_var'          => true,
 			'rewrite'            => ['slug' => 'courses'],
-			'capability_type'    => 'post',
+			'capability_type'    => 'lms_course',
+			'map_meta_cap'       => true,
 			'has_archive'        => true,
 			'hierarchical'       => true, // Allow parent courses (sub-courses)
-			'menu_position'      => 20,
-			'menu_icon'          => 'dashicons-welcome-learn-more',
+			'menu_position'      => 27, // After LMS4WP (26)
+			'menu_icon'          => 'dashicons-book',
 			'supports'           => [
 				'title',
 				'editor',

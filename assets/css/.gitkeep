@@ -1,0 +1,3 @@
+# This directory contains compiled CSS files from SCSS
+# Run `npm run build:css` to compile SCSS files
+

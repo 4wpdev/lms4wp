@@ -31,6 +31,7 @@ define('LMS4WP_VERSION', '1.0.0');
 define('LMS4WP_PATH', plugin_dir_path(__FILE__));
 define('LMS4WP_URL', plugin_dir_url(__FILE__));
 define('LMS4WP_BASENAME', plugin_basename(__FILE__));
+define('LMS4WP_FILE', __FILE__);
 
 // Load Composer autoloader
 if (file_exists(LMS4WP_PATH . 'vendor/autoload.php')) {
@@ -211,6 +212,14 @@ class Plugin
 	 */
 	private function initComponents(): void
 	{
+		// Initialize user roles
+		if (class_exists('ForWP\LMS\Users\Roles')) {
+			Users\Roles::init();
+		}
+		if (class_exists('ForWP\LMS\Users\EnrollmentService')) {
+			Users\EnrollmentService::init();
+		}
+
 		// Initialize post types (always available)
 		PostTypes\Course::init();
 		PostTypes\Lesson::init();
@@ -219,6 +228,9 @@ class Plugin
 		// Initialize WooCommerce integration (if class exists)
 		if (class_exists('ForWP\LMS\WooCommerce\WooBootstrap')) {
 			WooCommerce\WooBootstrap::init();
+		}
+		if (class_exists('ForWP\LMS\WooCommerce\MyAccount')) {
+			WooCommerce\MyAccount::init();
 		}
 
 		// Initialize MCP integration (if class exists)
@@ -246,6 +258,9 @@ class Plugin
 			}
 			if (class_exists('ForWP\LMS\Frontend\AccessControl')) {
 				Frontend\AccessControl::init();
+			}
+			if (class_exists('ForWP\LMS\Frontend\CourseEnrollment')) {
+				Frontend\CourseEnrollment::init();
 			}
 		}
 

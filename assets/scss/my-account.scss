@@ -1,0 +1,62 @@
+/**
+ * LMS4WP My Account Styles
+ * SCSS file - compiled to assets/css/my-account.css
+ */
+
+// Progress Bar
+.lms4wp-progress-bar {
+	position: relative;
+	width: 100%;
+	height: 20px;
+	background-color: #f0f0f0;
+	border-radius: 10px;
+	overflow: hidden;
+
+	&-fill {
+		position: absolute;
+		top: 0;
+		left: 0;
+		height: 100%;
+		background-color: #2271b1;
+		transition: width 0.3s ease;
+	}
+
+	&-text {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		font-size: 11px;
+		font-weight: 600;
+		color: #333;
+		z-index: 1;
+	}
+}
+
+// Status badges
+.lms4wp-status {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 12px;
+	font-weight: 600;
+
+	&-completed {
+		background-color: #00a32a;
+		color: #fff;
+	}
+
+	&-in-progress {
+		background-color: #f0b849;
+		color: #fff;
+	}
+}
+
+// My Courses & My Progress tables
+.lms4wp-my-courses,
+.lms4wp-my-progress {
+	.woocommerce-orders-table {
+		margin-top: 20px;
+	}
+}
+

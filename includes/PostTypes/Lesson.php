@@ -73,14 +73,15 @@ class Lesson
 			'public'             => true,
 			'publicly_queryable' => true,
 			'show_ui'            => true,
-			'show_in_menu'       => true,
+			'show_in_menu'       => true, // Show as separate menu
 			'show_in_rest'       => true,
 			'query_var'          => true,
 			'rewrite'            => ['slug' => 'lessons'],
-			'capability_type'    => 'post',
+			'capability_type'    => 'lms_lesson',
+			'map_meta_cap'       => true,
 			'has_archive'        => true,
 			'hierarchical'       => false,
-			'menu_position'      => 21,
+			'menu_position'      => 28, // After Courses (27)
 			'menu_icon'          => 'dashicons-book-alt',
 			'supports'           => [
 				'title',
@@ -345,4 +346,5 @@ class Lesson
 		}
 	}
 }
+
 
