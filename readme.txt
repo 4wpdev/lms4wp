@@ -4,7 +4,7 @@ Tags: lms, learning, courses, education, woocommerce, mcp, ai
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 1.0.0
+Stable tag: 1.10.0
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -55,7 +55,7 @@ Yes, LMS4WP works with any WordPress theme. Custom templates are provided but ca
 
 == Changelog ==
 
-= 1.0.0 =
+= 1.10.0 =
 * Initial MVP release
 * Core plugin architecture
 * Database schema with custom tables
@@ -71,7 +71,7 @@ Yes, LMS4WP works with any WordPress theme. Custom templates are provided but ca
 
 == Upgrade Notice ==
 
-= 1.0.0 =
+= 1.10.0 =
 Initial release. Make sure you have PHP 8.0+ and WordPress 6.0+ before installing.
 
 
