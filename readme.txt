@@ -75,3 +75,9 @@ Yes, LMS4WP works with any WordPress theme. Custom templates are provided but ca
 Initial release. Make sure you have PHP 8.0+ and WordPress 6.0+ before installing.
 
 
+
+
+
+
+
+

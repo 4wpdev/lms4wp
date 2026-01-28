@@ -27,6 +27,7 @@ if ($delete_data) {
 		$wpdb->prefix . 'lms4wp_enrollments',
 		$wpdb->prefix . 'lms4wp_progress',
 		$wpdb->prefix . 'lms4wp_access',
+		$wpdb->prefix . 'lms4wp_quiz_results',
 	];
 
 	foreach ($tables as $table) {
@@ -46,5 +47,7 @@ if ($delete_data) {
 		['%s']
 	);
 }
+
+
 
 

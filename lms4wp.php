@@ -4,7 +4,7 @@
  * Plugin URI: https://github.com/4wpdev/lms4wp
  * Description: LMS platform for learning your favorite programming language. WordPress plugin for educational courses and skill development.
  * Tags: lms, learning, courses, education, woocommerce, mcp, ai
- * Version: 1.0.0
+ * Version: 0.2.0
  * Author: 4wp.dev
  * Author URI: https://4wp.dev
  * Text Domain: lms4wp
