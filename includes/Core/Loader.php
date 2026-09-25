@@ -37,6 +37,22 @@ class Loader
 		require_once $includes_dir . 'PostTypes/Course.php';
 		require_once $includes_dir . 'PostTypes/Lesson.php';
 		require_once $includes_dir . 'PostTypes/Quiz.php';
+		require_once $includes_dir . 'PostTypes/PracticeCase.php';
+		require_once $includes_dir . 'Taxonomies/PracticeCaseTaxonomies.php';
+		require_once $includes_dir . 'Frontend/BlockPatterns.php';
+		require_once $includes_dir . 'Frontend/PracticeCaseDisplay.php';
+		require_once $includes_dir . 'Content/PracticeCaseBlockMarkup.php';
+		require_once $includes_dir . 'Content/PracticeCaseContent.php';
+		require_once $includes_dir . 'Content/PracticeCaseTemplate.php';
+		require_once $includes_dir . 'Content/PracticeCaseSeeder.php';
+		require_once $includes_dir . 'Frontend/PracticeCaseRenderer.php';
+		require_once $includes_dir . 'Blocks/PracticeCaseBlock.php';
+		require_once $includes_dir . 'Content/PracticeCaseTemplateSync.php';
+		require_once $includes_dir . 'Content/PracticeCaseEditorShell.php';
+
+		if (defined('WP_CLI') && WP_CLI && file_exists($includes_dir . 'CLI/PracticeCaseCommand.php')) {
+			require_once $includes_dir . 'CLI/PracticeCaseCommand.php';
+		}
 
 		// Users
 		if (file_exists($includes_dir . 'Users/Roles.php')) {

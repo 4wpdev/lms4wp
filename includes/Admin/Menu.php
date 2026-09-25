@@ -77,9 +77,8 @@ class Menu
 			[$this, 'renderSettings']
 		);
 
-		// Note: Courses, Lessons, Quizzes are separate menus
-		// They are registered via Post Types with show_in_menu => true
-		// WordPress will create separate menus for each automatically
+		// Note: Courses, Lessons, Quizzes are separate menus.
+		// Practices (practice_case) is a separate top-level menu with its own taxonomies.
 	}
 
 	/**

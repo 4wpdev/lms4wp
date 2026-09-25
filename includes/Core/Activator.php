@@ -14,11 +14,12 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-// Load required classes
 require_once LMS4WP_PATH . 'includes/Database/Schema.php';
 require_once LMS4WP_PATH . 'includes/Users/Roles.php';
 
 use ForWP\LMS\Database\Schema;
+use ForWP\LMS\Content\PracticeCaseTemplateSync;
+use ForWP\LMS\Content\PracticeCaseEditorShell;
 use ForWP\LMS\Users\Roles;
 
 /**
@@ -31,25 +32,46 @@ class Activator
 	 */
 	public static function activate(): void
 	{
-		// Create database tables
 		Schema::createTables();
 
-		// Register user roles (must be done immediately, not via init hook)
 		$roles = new Roles();
 		$roles->registerRoles();
 		$roles->registerCapabilities();
 
-		// Set default options
 		self::setDefaultOptions();
 
-		// Register WooCommerce My Account endpoints before flushing
 		if (class_exists('WooCommerce')) {
 			require_once LMS4WP_PATH . 'includes/WooCommerce/MyAccount.php';
 			$myaccount = new \ForWP\LMS\WooCommerce\MyAccount();
 			$myaccount->addEndpoints();
 		}
 
-		// Flush rewrite rules (includes WooCommerce My Account endpoints)
+		flush_rewrite_rules();
+	}
+
+	/**
+	 * Run lightweight upgrades without requiring manual reactivation.
+	 */
+	public static function maybeUpgrade(): void
+	{
+		$stored = get_option('lms4wp_version', '');
+		$rewrite_version = get_option('lms4wp_rewrite_version', '');
+
+		if ($stored === LMS4WP_VERSION && $rewrite_version === \ForWP\LMS\PostTypes\PracticeCase::REWRITE_VERSION) {
+			PracticeCaseTemplateSync::maybeSync();
+			PracticeCaseEditorShell::maybeBackfill();
+
+			return;
+		}
+
+		$roles = new Roles();
+		$roles->registerRoles();
+		$roles->registerCapabilities();
+
+		update_option('lms4wp_version', LMS4WP_VERSION, false);
+		update_option('lms4wp_rewrite_version', \ForWP\LMS\PostTypes\PracticeCase::REWRITE_VERSION, false);
+		PracticeCaseTemplateSync::maybeSync();
+		PracticeCaseEditorShell::maybeBackfill();
 		flush_rewrite_rules();
 	}
 
@@ -58,16 +80,10 @@ class Activator
 	 */
 	private static function setDefaultOptions(): void
 	{
-		$defaults = [
-			'lms4wp_version' => LMS4WP_VERSION,
-			'lms4wp_db_version' => '1.0.0',
-		];
-
-		foreach ($defaults as $key => $value) {
-			if (get_option($key) === false) {
-				add_option($key, $value);
-			}
+		if (get_option('lms4wp_db_version') === false) {
+			add_option('lms4wp_db_version', '1.0.0');
 		}
+
+		update_option('lms4wp_version', LMS4WP_VERSION, false);
 	}
 }
-

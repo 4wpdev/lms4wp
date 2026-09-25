@@ -24,6 +24,10 @@ class MyAccount
 	 */
 	public static function init(): void
 	{
+		if (!class_exists('WooCommerce')) {
+			return;
+		}
+
 		$self = new self();
 		
 		// Add custom endpoints
@@ -49,7 +53,7 @@ class MyAccount
 	 */
 	public function enqueueStyles(): void
 	{
-		if (is_account_page()) {
+		if (\function_exists('is_account_page') && \is_account_page()) {
 			wp_enqueue_style(
 				'lms4wp-my-account',
 				LMS4WP_URL . 'assets/css/my-account.css',
@@ -112,7 +116,7 @@ class MyAccount
 
 		// Hide Downloads if user has no downloadable products
 		if (isset($items['downloads'])) {
-			$downloads = wc_get_customer_available_downloads($user_id);
+			$downloads = \wc_get_customer_available_downloads($user_id);
 			if (empty($downloads)) {
 				unset($items['downloads']);
 			}
@@ -120,7 +124,7 @@ class MyAccount
 
 		// Hide Addresses if user has no orders with addresses
 		if (isset($items['edit-address'])) {
-			$orders = wc_get_orders([
+			$orders = \wc_get_orders([
 				'customer_id' => $user_id,
 				'limit' => 1,
 				'return' => 'ids',

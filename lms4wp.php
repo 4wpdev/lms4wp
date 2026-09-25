@@ -76,6 +76,8 @@ class Plugin
 	 */
 	private function init(): void
 	{
+		add_action('init', [Core\Activator::class, 'maybeUpgrade'], 5);
+
 		// Load dependencies
 		Core\Loader::loadDependencies();
 
@@ -224,12 +226,22 @@ class Plugin
 		PostTypes\Course::init();
 		PostTypes\Lesson::init();
 		PostTypes\Quiz::init();
+		Taxonomies\PracticeCaseTaxonomies::init();
+		PostTypes\PracticeCase::init();
+		Blocks\PracticeCaseBlock::init();
+		Content\PracticeCaseEditorShell::init();
+		Content\PracticeCaseTemplateSync::init();
+		Frontend\BlockPatterns::init();
+
+		if (class_exists('ForWP\LMS\Frontend\PracticeCaseDisplay')) {
+			Frontend\PracticeCaseDisplay::init();
+		}
 
 		// Initialize WooCommerce integration (if class exists)
 		if (class_exists('ForWP\LMS\WooCommerce\WooBootstrap')) {
 			WooCommerce\WooBootstrap::init();
 		}
-		if (class_exists('ForWP\LMS\WooCommerce\MyAccount')) {
+		if (class_exists('WooCommerce') && class_exists('ForWP\LMS\WooCommerce\MyAccount')) {
 			WooCommerce\MyAccount::init();
 		}
 
@@ -267,6 +279,10 @@ class Plugin
 		// Initialize REST API (if class exists)
 		if (class_exists('ForWP\LMS\REST\MCPBridgeController')) {
 			REST\MCPBridgeController::init();
+		}
+
+		if (defined('WP_CLI') && WP_CLI && class_exists('ForWP\LMS\CLI\PracticeCaseCommand')) {
+			\WP_CLI::add_command('lms4wp practice-case', CLI\PracticeCaseCommand::class);
 		}
 	}
 }

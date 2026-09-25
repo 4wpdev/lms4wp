@@ -68,10 +68,6 @@ class Roles
 		$student = get_role(self::ROLE_STUDENT);
 		$administrator = get_role('administrator');
 
-		if (!$mentor || !$student) {
-			return;
-		}
-
 		// Mentor capabilities
 		$mentor_caps = [
 			// Course management
@@ -98,13 +94,31 @@ class Roles
 			'delete_others_lms_quizzes' => false,
 			'read_private_lms_quizzes' => true,
 
+			// Practice case management (plural + singular — map_meta_cap needs both)
+			'edit_practice_case' => true,
+			'read_practice_case' => true,
+			'delete_practice_case' => true,
+			'edit_practice_cases' => true,
+			'edit_private_practice_cases' => true,
+			'edit_published_practice_cases' => true,
+			'edit_others_practice_cases' => false,
+			'publish_practice_cases' => true,
+			'delete_practice_cases' => true,
+			'delete_private_practice_cases' => true,
+			'delete_published_practice_cases' => true,
+			'delete_others_practice_cases' => false,
+			'read_private_practice_cases' => true,
+			'read_practice_cases' => true,
+
 			// View enrollments and progress (own courses only)
 			'view_lms_enrollments' => true,
 			'view_lms_progress' => true,
 		];
 
 		foreach ($mentor_caps as $cap => $grant) {
-			$mentor->add_cap($cap, $grant);
+			if ($mentor) {
+				$mentor->add_cap($cap, $grant);
+			}
 		}
 
 		// Student capabilities (basic read access)
@@ -112,12 +126,15 @@ class Roles
 			'read_lms_courses' => true,
 			'read_lms_lessons' => true,
 			'read_lms_quizzes' => true,
+			'read_practice_cases' => true,
 			'enroll_in_courses' => true,
 			'view_own_progress' => true,
 		];
 
 		foreach ($student_caps as $cap => $grant) {
-			$student->add_cap($cap, $grant);
+			if ($student) {
+				$student->add_cap($cap, $grant);
+			}
 		}
 
 		// Administrator gets all capabilities
@@ -129,6 +146,12 @@ class Roles
 				'delete_others_lms_lessons' => true,
 				'edit_others_lms_quizzes' => true,
 				'delete_others_lms_quizzes' => true,
+				'edit_others_practice_cases' => true,
+				'delete_others_practice_cases' => true,
+				'edit_private_practice_cases' => true,
+				'edit_published_practice_cases' => true,
+				'delete_private_practice_cases' => true,
+				'delete_published_practice_cases' => true,
 				'manage_lms_settings' => true,
 			]);
 
