@@ -4,7 +4,7 @@ Tags: lms, learning, courses, education, woocommerce, mcp, ai
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 1.10.0
+Stable tag: 1.10.1
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -55,6 +55,10 @@ Yes, LMS4WP works with any WordPress theme. Custom templates are provided but ca
 
 == Changelog ==
 
+= 1.10.1 =
+* Book post type and book category for the `/books/` catalog. Singles live at `/book/{name}/`.
+* Rewrite rules flush when the book rewrite version changes.
+
 = 1.10.0 =
 * Initial MVP release
 * Core plugin architecture
@@ -70,6 +74,9 @@ Yes, LMS4WP works with any WordPress theme. Custom templates are provided but ca
 * REST API for MCP bridge
 
 == Upgrade Notice ==
+
+= 1.10.1 =
+Adds the Book post type. Permalinks flush on upgrade.
 
 = 1.10.0 =
 Initial release. Make sure you have PHP 8.0+ and WordPress 6.0+ before installing.

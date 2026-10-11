@@ -38,6 +38,7 @@ class Loader
 		require_once $includes_dir . 'PostTypes/Lesson.php';
 		require_once $includes_dir . 'PostTypes/Quiz.php';
 		require_once $includes_dir . 'PostTypes/PracticeCase.php';
+		require_once $includes_dir . 'PostTypes/Book.php';
 		require_once $includes_dir . 'Taxonomies/PracticeCaseTaxonomies.php';
 		require_once $includes_dir . 'Frontend/BlockPatterns.php';
 		require_once $includes_dir . 'Frontend/PracticeCaseDisplay.php';
