@@ -1,0 +1,31 @@
+<!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+<!-- wp:group {"tagName":"main","className":"lms4wp-course","layout":{"type":"constrained"}} -->
+<main class="wp-block-group lms4wp-course">
+
+	<!-- wp:group {"align":"full","className":"lms4wp-course-hero","style":{"spacing":{"padding":{"top":"var:preset|spacing|70","bottom":"var:preset|spacing|60","left":"var:preset|spacing|40","right":"var:preset|spacing|40"}}},"layout":{"type":"constrained"}} -->
+	<div class="wp-block-group alignfull lms4wp-course-hero" style="padding-top:var(--wp--preset--spacing--70);padding-right:var(--wp--preset--spacing--40);padding-bottom:var(--wp--preset--spacing--60);padding-left:var(--wp--preset--spacing--40)">
+		<!-- wp:lms4wp/course-meta /-->
+		<!-- wp:post-title {"level":1,"className":"lms4wp-course-hero__title"} /-->
+		<!-- wp:group {"className":"lms4wp-terms","layout":{"type":"flex","flexWrap":"wrap"}} -->
+		<div class="wp-block-group lms4wp-terms">
+			<!-- wp:post-terms {"term":"lms_level","className":"lms4wp-terms__level"} /-->
+			<!-- wp:post-terms {"term":"lms_tag","separator":" ","className":"lms4wp-terms__tags"} /-->
+		</div>
+		<!-- /wp:group -->
+		<!-- wp:lms4wp/course-join /-->
+	</div>
+	<!-- /wp:group -->
+
+	<!-- wp:group {"className":"lms4wp-course-body","style":{"spacing":{"padding":{"top":"var:preset|spacing|60","bottom":"var:preset|spacing|70","left":"var:preset|spacing|40","right":"var:preset|spacing|40"}}},"layout":{"type":"constrained"}} -->
+	<div class="wp-block-group lms4wp-course-body" style="padding-top:var(--wp--preset--spacing--60);padding-right:var(--wp--preset--spacing--40);padding-bottom:var(--wp--preset--spacing--70);padding-left:var(--wp--preset--spacing--40)">
+		<!-- wp:post-content {"layout":{"type":"constrained"}} /-->
+		<!-- wp:lms4wp/course-outline /-->
+		<!-- wp:lms4wp/course-join /-->
+	</div>
+	<!-- /wp:group -->
+
+</main>
+<!-- /wp:group -->
+
+<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->

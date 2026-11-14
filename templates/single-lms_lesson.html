@@ -1,0 +1,37 @@
+<!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+<!-- wp:group {"tagName":"main","className":"lms4wp-lesson","style":{"spacing":{"padding":{"top":"var:preset|spacing|50","bottom":"var:preset|spacing|70","left":"var:preset|spacing|40","right":"var:preset|spacing|40"}}},"layout":{"type":"constrained"}} -->
+<main class="wp-block-group lms4wp-lesson" style="padding-top:var(--wp--preset--spacing--50);padding-right:var(--wp--preset--spacing--40);padding-bottom:var(--wp--preset--spacing--70);padding-left:var(--wp--preset--spacing--40)">
+
+	<!-- wp:columns {"align":"wide","className":"lms4wp-lesson__layout","style":{"spacing":{"blockGap":{"left":"var:preset|spacing|60"}}}} -->
+	<div class="wp-block-columns alignwide lms4wp-lesson__layout">
+
+		<!-- wp:column {"width":"68%","className":"lms4wp-lesson__main"} -->
+		<div class="wp-block-column lms4wp-lesson__main" style="flex-basis:68%">
+			<!-- wp:lms4wp/lesson-context /-->
+			<!-- wp:post-title {"level":1,"className":"lms4wp-lesson__title"} /-->
+			<!-- wp:group {"className":"lms4wp-terms","layout":{"type":"flex","flexWrap":"wrap"}} -->
+			<div class="wp-block-group lms4wp-terms">
+				<!-- wp:post-terms {"term":"lms_level","className":"lms4wp-terms__level"} /-->
+				<!-- wp:post-terms {"term":"lms_tag","separator":" ","className":"lms4wp-terms__tags"} /-->
+			</div>
+			<!-- /wp:group -->
+			<!-- wp:post-content /-->
+			<!-- wp:lms4wp/lesson-complete /-->
+			<!-- wp:lms4wp/lesson-nav /-->
+		</div>
+		<!-- /wp:column -->
+
+		<!-- wp:column {"width":"32%","className":"lms4wp-lesson__aside"} -->
+		<div class="wp-block-column lms4wp-lesson__aside" style="flex-basis:32%">
+			<!-- wp:lms4wp/course-outline {"compact":true} /-->
+		</div>
+		<!-- /wp:column -->
+
+	</div>
+	<!-- /wp:columns -->
+
+</main>
+<!-- /wp:group -->
+
+<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->

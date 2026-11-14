@@ -1,0 +1,469 @@
+// LMS4WP course & lesson blocks. Minimal, theme tokens with fallbacks.
+
+$primary: var(--wp--preset--color--primary, #2563eb);
+$contrast: var(--wp--preset--color--contrast, #111827);
+$base: var(--wp--preset--color--base, #fff);
+$muted: var(--wp--preset--color--gray-dark, #6b7280);
+$surface: var(--wp--preset--color--gray-light, #f5f7fa);
+$border: var(--wp--preset--color--gray-200, #e5e7eb);
+$radius: 12px;
+
+// Course landing
+.lms4wp-course-hero {
+	background: $surface;
+	border-bottom: 1px solid $border;
+}
+
+.lms4wp-course-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-bottom: 0.75rem;
+
+	&__item {
+		padding: 0.2rem 0.7rem;
+		border: 1px solid $border;
+		border-radius: 999px;
+		background: $base;
+		color: $muted;
+		font-size: 0.875rem;
+	}
+}
+
+.lms4wp-course-join {
+	margin-top: 1.5rem;
+
+	.wp-block-buttons {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin: 0;
+	}
+
+	button.wp-block-button__link {
+		cursor: pointer;
+		border: 0;
+		font: inherit;
+	}
+
+	&__note {
+		margin: 0.75rem 0 0;
+		color: $muted;
+		font-size: 0.875rem;
+	}
+}
+
+// Level / tags
+.lms4wp-terms {
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+
+	.wp-block-post-terms {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
+		margin: 0;
+		font-size: 0.8125rem;
+	}
+
+	.wp-block-post-terms__separator {
+		display: none;
+	}
+
+	a {
+		padding: 0.15rem 0.6rem;
+		border: 1px solid $border;
+		border-radius: 999px;
+		background: $base;
+		color: $muted;
+		text-decoration: none;
+	}
+
+	&__level a {
+		border-color: $primary;
+		color: $primary;
+		font-weight: 600;
+	}
+}
+
+// Outline
+.lms4wp-outline {
+	margin-top: 3rem;
+
+	&__heading {
+		margin-bottom: 1rem;
+	}
+
+	&__modules,
+	.lms4wp-module__lessons {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	&__modules {
+		display: grid;
+		gap: 0.75rem;
+	}
+}
+
+.lms4wp-module {
+	border: 1px solid $border;
+	border-radius: $radius;
+	background: $base;
+	overflow: hidden;
+
+	&.is-current {
+		border-color: $primary;
+	}
+
+	&__summary {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.25rem 0.75rem;
+		padding: 1rem 1.25rem;
+		cursor: pointer;
+		list-style: none;
+
+		&::-webkit-details-marker {
+			display: none;
+		}
+
+	}
+
+	&__chevron {
+		margin-left: auto;
+		align-self: center;
+		color: $muted;
+		transition: transform 0.2s ease;
+	}
+
+	details[open] > .lms4wp-module__summary &__chevron {
+		transform: rotate(180deg);
+	}
+
+	&__number {
+		color: $primary;
+		font-size: 0.8125rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	&__title {
+		font-weight: 600;
+	}
+
+	&__count {
+		color: $muted;
+		font-size: 0.875rem;
+	}
+
+	&__goal {
+		margin: 0;
+		padding: 0 1.25rem 0.75rem;
+		color: $muted;
+		font-size: 0.9375rem;
+	}
+
+	&__lessons {
+		border-top: 1px solid $border;
+	}
+}
+
+.lms4wp-lesson-item {
+	a {
+		display: block;
+		padding: 0.6rem 1.25rem;
+		color: $contrast;
+		text-decoration: none;
+	}
+
+	a:hover {
+		background: $surface;
+	}
+
+	& + & {
+		border-top: 1px solid $border;
+	}
+
+	&.is-current a {
+		background: $surface;
+		color: $primary;
+		font-weight: 600;
+		box-shadow: inset 3px 0 0 $primary;
+	}
+}
+
+// Progress (F6)
+.lms4wp-progress {
+	max-width: 28rem;
+	margin-bottom: 1rem;
+
+	&__label {
+		display: flex;
+		justify-content: space-between;
+		margin-bottom: 0.4rem;
+		color: $muted;
+		font-size: 0.875rem;
+	}
+
+	&__percent {
+		font-weight: 600;
+		color: $primary;
+	}
+
+	&__track {
+		height: 0.5rem;
+		border-radius: 999px;
+		background: color-mix(in srgb, #{$primary} 12%, transparent);
+		overflow: hidden;
+	}
+
+	&__bar {
+		display: block;
+		height: 100%;
+		border-radius: inherit;
+		background: $primary;
+		transition: width 0.3s ease;
+	}
+}
+
+.lms4wp-lesson-item.is-completed a {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.lms4wp-lesson-item__done {
+	flex: none;
+	align-self: center;
+	color: #2f9e6f;
+}
+
+.lms4wp-lesson-complete {
+	margin-top: 2.5rem;
+
+	.wp-block-buttons {
+		margin: 0;
+	}
+
+	button.wp-block-button__link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+		border: 0;
+		font: inherit;
+	}
+
+	&__done {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.6rem 1rem;
+		border-radius: 999px;
+		background: color-mix(in srgb, #2f9e6f 12%, transparent);
+		color: #2f9e6f;
+		font-weight: 600;
+	}
+
+	&__undo {
+		display: inline-block;
+		margin-left: 1rem;
+	}
+
+	&__hint {
+		margin: 0;
+		color: $muted;
+		font-size: 0.9375rem;
+	}
+}
+
+.lms4wp-link-button {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: $muted;
+	font: inherit;
+	font-size: 0.875rem;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.lms4wp-join-form {
+	display: contents;
+
+	button.wp-block-button__link {
+		cursor: pointer;
+		border: 0;
+		font: inherit;
+	}
+}
+
+// Locked lessons
+.lms4wp-lesson-item.is-locked a {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.5rem;
+	color: $muted;
+}
+
+.lms4wp-lesson-item__lock {
+	flex: none;
+	align-self: center;
+	color: $muted;
+	opacity: 0.7;
+}
+
+.lms4wp-locked {
+	margin: 2rem 0;
+	padding: 2rem;
+	border: 1px solid $border;
+	border-radius: $radius;
+	background: $surface;
+	text-align: center;
+
+	&__icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 3rem;
+		height: 3rem;
+		margin-bottom: 0.75rem;
+		border-radius: 999px;
+		background: color-mix(in srgb, #{$primary} 12%, transparent);
+		color: $primary;
+	}
+
+	&__title {
+		margin: 0 0 0.5rem;
+		font-size: 1.25rem;
+		font-weight: 600;
+	}
+
+	&__text {
+		margin: 0 0 1.25rem;
+		color: $muted;
+	}
+
+	.wp-block-buttons {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.75rem;
+	}
+}
+
+// Compact (lesson sidebar)
+.lms4wp-outline.is-compact {
+	margin-top: 0;
+	position: sticky;
+	top: 2rem;
+
+	.lms4wp-outline__heading {
+		font-weight: 600;
+
+		a {
+			color: $contrast;
+			text-decoration: none;
+		}
+	}
+
+	.lms4wp-module__summary {
+		padding: 0.75rem 1rem;
+	}
+
+	.lms4wp-lesson-item a {
+		padding: 0.5rem 1rem;
+		font-size: 0.9375rem;
+	}
+}
+
+// Lesson
+.lms4wp-lesson-context {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem 0.5rem;
+	color: $muted;
+	font-size: 0.875rem;
+
+	&__course {
+		color: $primary;
+		text-decoration: none;
+		font-weight: 600;
+	}
+
+	&__sep {
+		color: $muted;
+		opacity: 0.6;
+	}
+
+	&__progress {
+		margin-left: auto;
+	}
+}
+
+.lms4wp-lesson-nav {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1rem;
+	margin-top: 3rem;
+	padding-top: 2rem;
+	border-top: 1px solid $border;
+
+	&__link {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		padding: 1rem 1.25rem;
+		border: 1px solid $border;
+		border-radius: $radius;
+		color: $contrast;
+		text-decoration: none;
+
+		&:hover {
+			border-color: $primary;
+		}
+
+		&.is-next {
+			text-align: right;
+		}
+
+		&.is-empty {
+			border: 0;
+		}
+	}
+
+	&__label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		color: $muted;
+		font-size: 0.8125rem;
+	}
+
+	&__link.is-next &__label {
+		justify-content: flex-end;
+	}
+
+	&__title {
+		font-weight: 600;
+	}
+}
+
+@media (max-width: 781px) {
+	.lms4wp-outline.is-compact {
+		position: static;
+	}
+
+	.lms4wp-lesson-nav {
+		grid-template-columns: 1fr;
+
+		&__link.is-empty {
+			display: none;
+		}
+	}
+}

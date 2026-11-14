@@ -28,7 +28,7 @@ class CourseEnrollment
 		
 		// Add enrollment button to single course page
 		add_action('woocommerce_single_product_summary', [$self, 'renderEnrollmentButton'], 25);
-		add_action('the_content', [$self, 'addEnrollmentButtonToContent'], 10);
+		// Course page button — block lms4wp/course-join in the course template.
 	}
 
 	/**
