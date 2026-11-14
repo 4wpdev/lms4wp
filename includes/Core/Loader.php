@@ -51,8 +51,26 @@ class Loader
 		require_once $includes_dir . 'Content/PracticeCaseTemplateSync.php';
 		require_once $includes_dir . 'Content/PracticeCaseEditorShell.php';
 
+		// Course / lesson templates and blocks.
+		require_once $includes_dir . 'Frontend/Icons.php';
+		require_once $includes_dir . 'Content/CourseStructure.php';
+		require_once $includes_dir . 'Content/LessonAccess.php';
+		require_once $includes_dir . 'Content/Progress.php';
+		require_once $includes_dir . 'Blocks/CourseBlocks.php';
+		require_once $includes_dir . 'Frontend/CourseTemplates.php';
+		require_once $includes_dir . 'Integrations/AdvancedCodeTerminal.php';
+		require_once $includes_dir . 'Import/CourseImporter.php';
+
 		if (defined('WP_CLI') && WP_CLI && file_exists($includes_dir . 'CLI/PracticeCaseCommand.php')) {
 			require_once $includes_dir . 'CLI/PracticeCaseCommand.php';
+		}
+
+		// Hub course import (docs/COURSE-FORMAT.md).
+		if (defined('WP_CLI') && WP_CLI) {
+			require_once $includes_dir . 'Import/FrontMatter.php';
+			require_once $includes_dir . 'Import/MarkdownBlocks.php';
+			require_once $includes_dir . 'Import/CourseImporter.php';
+			require_once $includes_dir . 'CLI/CourseCommand.php';
 		}
 
 		// Users

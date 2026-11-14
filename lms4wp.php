@@ -233,6 +233,11 @@ class Plugin
 		Content\PracticeCaseEditorShell::init();
 		Content\PracticeCaseTemplateSync::init();
 		Frontend\BlockPatterns::init();
+		Content\LessonAccess::init();
+		Content\Progress::init();
+		Blocks\CourseBlocks::init();
+		Frontend\CourseTemplates::init();
+		Integrations\AdvancedCodeTerminal::init();
 
 		if (class_exists('ForWP\LMS\Frontend\PracticeCaseDisplay')) {
 			Frontend\PracticeCaseDisplay::init();
@@ -284,6 +289,10 @@ class Plugin
 
 		if (defined('WP_CLI') && WP_CLI && class_exists('ForWP\LMS\CLI\PracticeCaseCommand')) {
 			\WP_CLI::add_command('lms4wp practice-case', CLI\PracticeCaseCommand::class);
+		}
+
+		if (defined('WP_CLI') && WP_CLI && class_exists('ForWP\LMS\CLI\CourseCommand')) {
+			\WP_CLI::add_command('lms4wp course', CLI\CourseCommand::class);
 		}
 	}
 }

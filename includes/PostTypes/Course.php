@@ -152,7 +152,7 @@ class Course
 
 		register_taxonomy(
 			'lms_level',
-			[self::POST_TYPE],
+			[self::POST_TYPE, Lesson::POST_TYPE],
 			[
 				'hierarchical'      => true,
 				'labels'            => $level_labels,
@@ -161,6 +161,27 @@ class Course
 				'show_in_rest'      => true,
 				'query_var'         => true,
 				'rewrite'           => ['slug' => 'course-level'],
+			]
+		);
+
+		// Tags for courses and lessons (hub front-matter "tags").
+		register_taxonomy(
+			'lms_tag',
+			[self::POST_TYPE, Lesson::POST_TYPE],
+			[
+				'hierarchical'      => false,
+				'labels'            => [
+					'name'          => _x('Course Tags', 'Taxonomy general name', 'lms4wp'),
+					'singular_name' => _x('Course Tag', 'Taxonomy singular name', 'lms4wp'),
+					'menu_name'     => __('Tags', 'lms4wp'),
+					'add_new_item'  => __('Add New Tag', 'lms4wp'),
+					'search_items'  => __('Search Tags', 'lms4wp'),
+				],
+				'show_ui'           => true,
+				'show_admin_column' => true,
+				'show_in_rest'      => true,
+				'query_var'         => true,
+				'rewrite'           => ['slug' => 'course-tag'],
 			]
 		);
 	}
@@ -191,6 +212,7 @@ class Course
 
 		$woocommerce_product_id = get_post_meta($post->ID, '_lms4wp_woocommerce_product_id', true);
 		$prerequisites = get_post_meta($post->ID, '_lms4wp_prerequisites', true);
+		$guest_lessons = \ForWP\LMS\Content\LessonAccess::guestLessons($post->ID);
 		$prerequisites = is_array($prerequisites) ? $prerequisites : [];
 
 		// Get all courses for prerequisites dropdown
@@ -203,6 +225,19 @@ class Course
 		]);
 		?>
 		<table class="form-table">
+			<tr>
+				<th scope="row">
+					<label for="lms4wp_guest_lessons">
+						<?php esc_html_e('Guest access', 'lms4wp'); ?>
+					</label>
+				</th>
+				<td>
+					<input type="number" name="lms4wp_guest_lessons" id="lms4wp_guest_lessons" value="<?php echo esc_attr((string) $guest_lessons); ?>" min="0" step="1" class="small-text" />
+					<p class="description">
+						<?php esc_html_e('How many first lessons are open without sign-in. 0 — none. Hub front-matter "guest_lessons" overwrites this on import.', 'lms4wp'); ?>
+					</p>
+				</td>
+			</tr>
 			<tr>
 				<th scope="row">
 					<label for="lms4wp_woocommerce_product_id">
@@ -283,6 +318,10 @@ class Course
 		}
 
 		// Save WooCommerce Product ID
+		if (isset($_POST['lms4wp_guest_lessons'])) {
+			update_post_meta($post_id, \ForWP\LMS\Content\LessonAccess::META_GUEST_LESSONS, absint(wp_unslash($_POST['lms4wp_guest_lessons'])));
+		}
+
 		if (isset($_POST['lms4wp_woocommerce_product_id'])) {
 			$product_id = absint($_POST['lms4wp_woocommerce_product_id']);
 			if ($product_id > 0) {

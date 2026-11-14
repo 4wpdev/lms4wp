@@ -214,14 +214,19 @@ class EnrollmentService
 			wp_die(__('Invalid course ID.', 'lms4wp'));
 		}
 
+		// Paid course (WooCommerce product): enrollment only through purchase (ADR 0002).
+		if (class_exists('\\ForWP\\LMS\\Content\\LessonAccess') && \ForWP\LMS\Content\LessonAccess::productId($course_id) > 0) {
+			wp_die(esc_html__('This course is available after purchase.', 'lms4wp'), '', ['response' => 403]);
+		}
+
 		$user_id = get_current_user_id();
 		$result = self::enroll($user_id, $course_id);
 
-		if ($result) {
-			wp_safe_redirect(add_query_arg('enrolled', '1', get_permalink($course_id)));
-		} else {
-			wp_safe_redirect(add_query_arg('enrolled', '0', get_permalink($course_id)));
-		}
+		// Back to where the form was (lesson or course page).
+		$redirect = isset($_POST['redirect_to']) ? esc_url_raw(wp_unslash($_POST['redirect_to'])) : '';
+		$target = $redirect !== '' ? $redirect : (string) get_permalink($course_id);
+
+		wp_safe_redirect(add_query_arg('enrolled', $result ? '1' : '0', $target));
 		exit;
 	}
 }
