@@ -10,6 +10,8 @@ namespace ForWP\LMS\Import;
 
 use ForWP\LMS\PostTypes\Course;
 use ForWP\LMS\PostTypes\Lesson;
+use ForWP\LMS\PostTypes\Module;
+use ForWP\LMS\Content\CourseStructure;
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
@@ -21,9 +23,7 @@ final class CourseImporter
 	const META_SOURCE        = '_lms4wp_source';
 	const META_SOURCE_HASH   = '_lms4wp_source_hash';
 	const META_SOURCE_COMMIT = '_lms4wp_source_commit';
-	const META_MODULES       = '_lms4wp_modules';
-	const META_TERMINALS     = '_lms4wp_terminals';
-	const META_MODULE        = '_lms4wp_module';
+	const META_TERMINAL      = '_lms4wp_terminal'; // On the module post (ADR 0006, 0008).
 	const META_COURSE_ID     = '_lms4wp_course_id';
 	const META_ORDER         = '_lms4wp_order';
 
@@ -72,55 +72,113 @@ final class CourseImporter
 	}
 
 	/**
-	 * Import a course package.
+	 * Import a course package (or one step of it, for the queue).
 	 *
+	 * @param PackageReader|string $source Reader or local course folder.
+	 * @param string               $scope  "all" | "course" (course post, modules, terminals) | "module:<key>" (lessons of one module).
 	 * @return array{course_id: int, modules: int, lessons: int, created: int, updated: int, skipped: int, deleted: int}|\WP_Error
 	 */
-	public function import(string $dir)
+	public function import($source, string $scope = 'all')
 	{
 		if ($this->status !== '' && !in_array($this->status, self::STATUSES, true)) {
 			return new \WP_Error('lms4wp_import_status', sprintf('Unknown status "%s".', $this->status));
 		}
 
-		$package = $this->readPackage($dir);
+		$reader = $source instanceof PackageReader ? $source : new FilesystemPackageReader((string) $source);
+		$only_module = str_starts_with($scope, 'module:') ? substr($scope, 7) : null;
+		$with_course = $scope === 'all' || $scope === 'course';
+		$with_lessons = $scope === 'all' || $only_module !== null;
+
+		$package = $this->readPackage($reader, [
+			'lessons'   => $with_lessons,
+			'module'    => $only_module,
+			'terminals' => $with_course,
+		]);
 		if (is_wp_error($package)) {
 			return $package;
 		}
 
-		if ($this->replace) {
-			$this->deleteCourse($package['slug']);
-		}
-
-		// Course.
 		$course = $package['course'];
-		$course_id = $this->upsert(
-			Course::POST_TYPE,
-			$course,
-			[
-				'post_title'   => $course['title'],
-				'post_name'    => $package['slug'],
-				'post_content' => MarkdownBlocks::convert($course['doc']['body']),
-				'post_status'  => $this->statusFor($course['doc']['meta']),
-			],
-			// Guest access (ADR 0003): front-matter "guest_lessons" → course setting.
-			isset($course['doc']['meta']['guest_lessons'])
-				? ['_lms4wp_guest_lessons' => absint($course['doc']['meta']['guest_lessons'])]
-				: [],
-			$this->termsFor($course['doc']['meta'])
-		);
-		if (is_wp_error($course_id)) {
-			return $course_id;
+
+		if ($with_course) {
+			if ($this->replace) {
+				$this->deleteCourse($package['slug']);
+			}
+
+			// Course.
+			$course_id = $this->upsert(
+				Course::POST_TYPE,
+				$course,
+				[
+					'post_title'   => $course['title'],
+					'post_name'    => $package['slug'],
+					'post_content' => MarkdownBlocks::convert($course['doc']['body']),
+					'post_excerpt' => (string) ($course['doc']['meta']['excerpt'] ?? ''),
+					'post_status'  => $this->statusFor($course['doc']['meta']),
+				],
+				// Guest access (ADR 0003): front-matter "guest_lessons" → course setting.
+				isset($course['doc']['meta']['guest_lessons'])
+					? ['_lms4wp_guest_lessons' => absint($course['doc']['meta']['guest_lessons'])]
+					: [],
+				$this->termsFor($course['doc']['meta'])
+			);
+			if (is_wp_error($course_id)) {
+				return $course_id;
+			}
+
+			if (!$this->dry_run && $course_id > 0) {
+				update_post_meta($course_id, self::META_SOURCE_COMMIT, $this->commit);
+			}
+
+			// Modules: lms_module posts under the course (ADR 0008); terminal.json on the module.
+			foreach ($package['modules'] as $module) {
+				$module_id = $this->upsert(
+					Module::POST_TYPE,
+					$module,
+					[
+						'post_title'   => $module['title'],
+						'post_name'    => $package['slug'] . '-' . $module['key'],
+						'post_content' => MarkdownBlocks::convert($module['doc']['body']),
+						'post_excerpt' => $module['goal'],
+						'post_status'  => 'publish',
+						'post_parent'  => $course_id,
+						'menu_order'   => $module['number'],
+					],
+					[
+						Module::META_KEY    => $module['key'],
+						self::META_TERMINAL => $module['terminal'] ?? '',
+					]
+				);
+				if (is_wp_error($module_id)) {
+					return $module_id;
+				}
+				// Keep the module under the current course even when its file did not change.
+				if (!$this->dry_run && $module_id > 0 && (int) wp_get_post_parent_id($module_id) !== $course_id) {
+					wp_update_post(['ID' => $module_id, 'post_parent' => $course_id]);
+				}
+			}
+		} else {
+			$course_id = self::findCourseId($package['slug']);
+			if ($course_id === 0 && !$this->dry_run) {
+				return new \WP_Error('lms4wp_import_course_missing', sprintf('Course "%s" is not imported yet — run the course step first.', $package['slug']));
+			}
 		}
 
-		if (!$this->dry_run && $course_id > 0) {
-			update_post_meta($course_id, self::META_MODULES, $package['modules']);
-			update_post_meta($course_id, self::META_TERMINALS, $package['terminals']);
-			update_post_meta($course_id, self::META_SOURCE_COMMIT, $this->commit);
+		if (!$with_lessons) {
+			return [
+				'course_id' => $course_id,
+				'modules'   => count($package['modules']),
+				'lessons'   => 0,
+			] + $this->stats;
 		}
 
 		// Lessons.
 		$modules = array_column($package['modules'], null, 'key');
 		$faq_attrs = [];
+		$module_posts = [];
+		foreach ($modules as $key => $module) {
+			$module_posts[$key] = $this->findSourcePost(Module::POST_TYPE, $module['source']);
+		}
 
 		foreach ($package['lessons'] as $lesson) {
 			// FAQ category only for lessons that have Q&A (### under a FAQ section).
@@ -139,20 +197,29 @@ final class CourseImporter
 						'faq_sections' => self::FAQ_SECTIONS,
 						'faq_attrs'    => $faq_attrs[$lesson['module']] ?? [],
 					]),
+					'post_excerpt' => (string) ($lesson['doc']['meta']['excerpt'] ?? ''),
 					'post_status'  => $this->statusFor($lesson['doc']['meta']),
 					'menu_order'   => $lesson['order'],
 				],
 				[
 					self::META_COURSE_ID => $course_id,
-					self::META_MODULE    => $lesson['module'],
 					self::META_ORDER     => $lesson['order'],
 				],
 				$this->termsFor($lesson['doc']['meta'])
 			);
+			// Module via the shadow taxonomy (also when the file itself did not change).
+			if (!$this->dry_run && !is_wp_error($result) && $result > 0) {
+				$module_id = $module_posts[$lesson['module']] ?? 0;
+				if (Module::forLesson((int) $result) !== $module_id) {
+					Module::assignLesson((int) $result, $module_id);
+				}
+			}
 			if (is_wp_error($result)) {
 				return $result;
 			}
 		}
+
+		CourseStructure::flush();
 
 		return [
 			'course_id' => $course_id,
@@ -166,9 +233,10 @@ final class CourseImporter
 	 *
 	 * @return array{course_id: int, modules: int, lessons: int, commit: string, issues: string[]}|\WP_Error
 	 */
-	public function verify(string $dir)
+	public function verify($source)
 	{
-		$package = $this->readPackage($dir);
+		$reader = $source instanceof PackageReader ? $source : new FilesystemPackageReader((string) $source);
+		$package = $this->readPackage($reader);
 		if (is_wp_error($package)) {
 			return $package;
 		}
@@ -180,7 +248,11 @@ final class CourseImporter
 
 		$issues = [];
 		$course_id = $site[$package['course']['source']] ?? 0;
-		$expected = array_merge([$package['course']], $package['lessons']);
+		$expected = array_merge([$package['course']], $package['modules'], $package['lessons']);
+		$module_posts = [];
+		foreach ($package['modules'] as $module) {
+			$module_posts[$module['key']] = $site[$module['source']] ?? 0;
+		}
 
 		foreach ($expected as $item) {
 			$post_id = $site[$item['source']] ?? 0;
@@ -195,8 +267,16 @@ final class CourseImporter
 				if ((int) get_post_meta($post_id, self::META_COURSE_ID, true) !== $course_id) {
 					$issues[] = sprintf('course    %s (#%d): wrong course', $item['source'], $post_id);
 				}
-				if (get_post_meta($post_id, self::META_MODULE, true) !== $item['module']) {
+				if (Module::forLesson($post_id) !== ($module_posts[$item['module']] ?? 0)) {
 					$issues[] = sprintf('module    %s (#%d): wrong module', $item['source'], $post_id);
+				}
+			} elseif (isset($item['key'])) {
+				if ((int) wp_get_post_parent_id($post_id) !== $course_id) {
+					$issues[] = sprintf('module    %s (#%d): not under the course', $item['source'], $post_id);
+				}
+				$site_terminal = get_post_meta($post_id, self::META_TERMINAL, true);
+				if (($site_terminal === '' ? null : $site_terminal) !== ($item['terminal'] ?? null)) {
+					$issues[] = sprintf('terminal  %s (#%d): terminal.json differs', $item['source'], $post_id);
 				}
 			}
 			unset($site[$item['source']]);
@@ -208,13 +288,6 @@ final class CourseImporter
 
 		$site_commit = $course_id > 0 ? (string) get_post_meta($course_id, self::META_SOURCE_COMMIT, true) : '';
 		if ($course_id > 0) {
-			if (get_post_meta($course_id, self::META_MODULES, true) !== $package['modules']) {
-				$issues[] = 'modules   course module list differs';
-			}
-			$site_terminals = get_post_meta($course_id, self::META_TERMINALS, true);
-			if (($site_terminals === '' ? [] : $site_terminals) !== $package['terminals']) {
-				$issues[] = 'terminals chapter terminal.json differs';
-			}
 			if ($this->commit !== '' && $site_commit !== $this->commit) {
 				$issues[] = sprintf('commit    site %s, hub %s', $site_commit !== '' ? $site_commit : '—', $this->commit);
 			}
@@ -285,19 +358,33 @@ final class CourseImporter
 	}
 
 	/**
-	 * Read a course package from disk.
+	 * Read a course package through a reader (folder or 4wp-drive).
 	 *
+	 * Options: lessons (read lesson files, default true), module (only this module key),
+	 * terminals (read terminal.json, default true).
+	 *
+	 * @param array{lessons?: bool, module?: ?string, terminals?: bool} $options
 	 * @return array{slug: string, course: array, modules: array, lessons: array, terminals: array<string, array>}|\WP_Error
 	 */
-	private function readPackage(string $dir)
+	private function readPackage(PackageReader $reader, array $options = [])
 	{
-		$dir = realpath($dir);
-		if ($dir === false || !is_dir($dir) || !is_readable($dir . '/' . self::COURSE_FILE)) {
-			return new \WP_Error('lms4wp_import_dir', sprintf('Not a course directory (no %s).', self::COURSE_FILE));
+		$with_lessons = $options['lessons'] ?? true;
+		$only_module = $options['module'] ?? null;
+		$with_terminals = $options['terminals'] ?? true;
+
+		$files = $reader->files();
+		if (is_wp_error($files)) {
+			return $files;
+		}
+		if (!in_array(self::COURSE_FILE, $files, true)) {
+			return new \WP_Error('lms4wp_import_dir', sprintf('Not a course package (no %s).', self::COURSE_FILE));
 		}
 
-		$slug = sanitize_title(basename($dir));
-		$doc = $this->readFile($dir . '/' . self::COURSE_FILE);
+		$slug = $reader->slug();
+		$doc = $this->readDoc($reader, self::COURSE_FILE);
+		if (is_wp_error($doc)) {
+			return $doc;
+		}
 		$title = trim(explode(' — ', $doc['meta']['title'] ?? '')[0]);
 
 		$course = [
@@ -306,30 +393,58 @@ final class CourseImporter
 			'doc'    => $doc,
 		];
 
+		// Index: module-<N>-<slug>/<file>.
+		$index = [];
+		foreach ($files as $file) {
+			if (preg_match('#^(module-(\d+)-[^/]+)/([^/]+)$#', $file, $m)) {
+				$index[(int) $m[2]]['key'] = $m[1];
+				$index[(int) $m[2]]['files'][] = $m[3];
+			}
+		}
+		ksort($index);
+
 		$modules = [];
 		$lessons = [];
 		$terminals = [];
-		foreach ($this->moduleDirs($dir) as $number => $path) {
-			$key = basename($path);
+		foreach ($index as $number => $entry) {
+			$key = $entry['key'];
+			if ($only_module !== null && $key !== $only_module) {
+				continue;
+			}
+			$module_files = $entry['files'];
+
 			$module_title = $key;
 			$label = '';
 			$goal = '';
-			if (is_readable($path . '/' . self::MODULE_FILE)) {
-				$module_doc = $this->readFile($path . '/' . self::MODULE_FILE);
-				$raw = $module_doc['meta']['title'] ?? '';
-				$raw = trim(preg_replace('/\s+—\s+вимоги$/u', '', $raw) ?? $raw);
-				$label = $raw;
-				$raw = preg_replace('/^Модуль\s+\d+\.\s*/u', '', $raw) ?? $raw;
-				$raw = trim(preg_replace('/\s+—\s+вимоги$/u', '', $raw) ?? $raw);
+			$module_doc = ['meta' => [], 'body' => '', 'hash' => ''];
+			if (in_array(self::MODULE_FILE, $module_files, true)) {
+				$module_doc = $this->readDoc($reader, $key . '/' . self::MODULE_FILE);
+				if (is_wp_error($module_doc)) {
+					return $module_doc;
+				}
+				$raw = trim($module_doc['meta']['title'] ?? '');
+				if (($module_doc['meta']['type'] ?? '') !== 'module') {
+					// Legacy title "Модуль N. Назва — вимоги".
+					$raw = trim(preg_replace('/\s+—\s+вимоги$/u', '', $raw) ?? $raw);
+					$label = $raw;
+					$raw = trim(preg_replace('/^Модуль\s+\d+\.\s*/u', '', $raw) ?? $raw);
+				}
 				$module_title = $raw !== '' ? $raw : $key;
+				$label = $label !== '' ? $label : $module_title;
 				if (preg_match('/^##\s+Мета модуля\s*\n+(.+?)(?:\n\s*\n|\n#|\z)/msu', $module_doc['body'], $g)) {
 					$goal = trim(preg_replace('/\s+/u', ' ', $g[1]) ?? $g[1]);
 				}
 			}
 
 			// Chapter terminal (ADR 0006).
-			if (is_readable($path . '/' . self::TERMINAL_FILE)) {
-				$terminal = json_decode((string) file_get_contents($path . '/' . self::TERMINAL_FILE), true);
+			$terminal = null;
+			$raw_json = '';
+			if ($with_terminals && in_array(self::TERMINAL_FILE, $module_files, true)) {
+				$raw_json = $reader->read($key . '/' . self::TERMINAL_FILE);
+				if (is_wp_error($raw_json)) {
+					return $raw_json;
+				}
+				$terminal = json_decode($raw_json, true);
 				if (!is_array($terminal) || empty($terminal['commands']) || !is_array($terminal['commands'])) {
 					return new \WP_Error('lms4wp_import_terminal', sprintf('%s/%s: invalid JSON or no "commands".', $key, self::TERMINAL_FILE));
 				}
@@ -337,18 +452,37 @@ final class CourseImporter
 			}
 
 			$modules[] = [
-				'key'    => $key,
-				'number' => $number,
-				'title'  => $module_title,
-				'label'  => $label !== '' ? $label : $module_title,
-				'goal'   => $goal,
+				'source'   => $slug . '/' . $key . '/' . self::MODULE_FILE,
+				'key'      => $key,
+				'number'   => $number,
+				'title'    => $module_title,
+				'label'    => $label !== '' ? $label : $module_title,
+				'goal'     => $goal,
+				'terminal' => $terminal,
+				// Module post content = requirements.md; hash covers terminal.json too.
+				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json))],
 			];
 
-			foreach ($this->lessonFiles($path) as $lesson_number => $file) {
-				$lesson_doc = $this->readFile($file);
-				$lesson_slug = sanitize_title($lesson_doc['meta']['slug'] ?? pathinfo($file, PATHINFO_FILENAME));
+			if (!$with_lessons) {
+				continue;
+			}
+
+			$lesson_files = [];
+			foreach ($module_files as $name) {
+				if (preg_match('/^lesson-\d+-(\d+)-.*\.md$/', $name, $l)) {
+					$lesson_files[(int) $l[1]] = $name;
+				}
+			}
+			ksort($lesson_files);
+
+			foreach ($lesson_files as $lesson_number => $name) {
+				$lesson_doc = $this->readDoc($reader, $key . '/' . $name);
+				if (is_wp_error($lesson_doc)) {
+					return $lesson_doc;
+				}
+				$lesson_slug = sanitize_title($lesson_doc['meta']['slug'] ?? pathinfo($name, PATHINFO_FILENAME));
 				$lessons[] = [
-					'source' => $slug . '/' . $key . '/' . basename($file),
+					'source' => $slug . '/' . $key . '/' . $name,
 					'title'  => $lesson_doc['meta']['title'] ?? $lesson_slug,
 					'slug'   => $lesson_slug,
 					'module' => $key,
@@ -359,8 +493,8 @@ final class CourseImporter
 		}
 
 		return [
-			'slug'    => $slug,
-			'course'  => $course,
+			'slug'      => $slug,
+			'course'    => $course,
 			'modules'   => $modules,
 			'lessons'   => $lessons,
 			'terminals' => $terminals,
@@ -368,42 +502,72 @@ final class CourseImporter
 	}
 
 	/**
-	 * @return array<int, string> Module number => path, ordered.
+	 * @return array{meta: array<string, string>, body: string, hash: string}|\WP_Error
 	 */
-	private function moduleDirs(string $dir): array
+	private function readDoc(PackageReader $reader, string $relative)
 	{
-		$dirs = [];
-		foreach (glob($dir . '/module-*', GLOB_ONLYDIR) ?: [] as $path) {
-			if (preg_match('/^module-(\d+)-/', basename($path), $m)) {
-				$dirs[(int) $m[1]] = $path;
-			}
+		$raw = $reader->read($relative);
+		if (is_wp_error($raw)) {
+			return $raw;
 		}
-		ksort($dirs);
-		return $dirs;
-	}
-
-	/**
-	 * @return array<int, string> Lesson number => file, ordered.
-	 */
-	private function lessonFiles(string $path): array
-	{
-		$files = [];
-		foreach (glob($path . '/lesson-*.md') ?: [] as $file) {
-			if (preg_match('/^lesson-\d+-(\d+)-/', basename($file), $m)) {
-				$files[(int) $m[1]] = $file;
-			}
-		}
-		ksort($files);
-		return $files;
-	}
-
-	/**
-	 * @return array{meta: array<string, string>, body: string, hash: string}
-	 */
-	private function readFile(string $path): array
-	{
-		$raw = (string) file_get_contents($path);
 		return FrontMatter::parse($raw) + ['hash' => sha1($raw)];
+	}
+
+	/**
+	 * Post imported from a source path (0 — none).
+	 */
+	private function findSourcePost(string $post_type, string $source): int
+	{
+		$ids = get_posts([
+			'post_type'        => $post_type,
+			'post_status'      => 'any',
+			'meta_key'         => self::META_SOURCE,
+			'meta_value'       => $source,
+			'posts_per_page'   => 1,
+			'fields'           => 'ids',
+			'no_found_rows'    => true,
+			'suppress_filters' => true,
+		]);
+		return (int) ($ids[0] ?? 0);
+	}
+
+	/**
+	 * Course post imported from a package slug (0 — none yet).
+	 */
+	public static function findCourseId(string $slug): int
+	{
+		$ids = get_posts([
+			'post_type'        => Course::POST_TYPE,
+			'post_status'      => 'any',
+			'meta_key'         => self::META_SOURCE,
+			'meta_value'       => $slug . '/' . self::COURSE_FILE,
+			'posts_per_page'   => 1,
+			'fields'           => 'ids',
+			'no_found_rows'    => true,
+			'suppress_filters' => true,
+		]);
+		return (int) ($ids[0] ?? 0);
+	}
+
+	/**
+	 * Module keys of a package, in order (for queue fan-out).
+	 *
+	 * @return string[]|\WP_Error
+	 */
+	public static function moduleKeys(PackageReader $reader)
+	{
+		$files = $reader->files();
+		if (is_wp_error($files)) {
+			return $files;
+		}
+		$keys = [];
+		foreach ($files as $file) {
+			if (preg_match('#^(module-(\d+)-[^/]+)/#', $file, $m)) {
+				$keys[(int) $m[2]] = $m[1];
+			}
+		}
+		ksort($keys);
+		return array_values($keys);
 	}
 
 	/**
@@ -426,7 +590,7 @@ final class CourseImporter
 	private function findSourcePosts(string $slug): array
 	{
 		return array_map('intval', get_posts([
-			'post_type'        => [Course::POST_TYPE, Lesson::POST_TYPE],
+			'post_type'        => [Course::POST_TYPE, Module::POST_TYPE, Lesson::POST_TYPE],
 			'post_status'      => 'any',
 			'posts_per_page'   => -1,
 			'fields'           => 'ids',
@@ -447,7 +611,10 @@ final class CourseImporter
 	 */
 	private function deleteCourse(string $slug): void
 	{
-		foreach ($this->findSourcePosts($slug) as $post_id) {
+		$order = [Lesson::POST_TYPE => 0, Module::POST_TYPE => 1, Course::POST_TYPE => 2];
+		$ids = $this->findSourcePosts($slug);
+		usort($ids, static fn(int $a, int $b): int => ($order[get_post_type($a)] ?? 3) <=> ($order[get_post_type($b)] ?? 3));
+		foreach ($ids as $post_id) {
 			$this->stats['deleted']++;
 			($this->log)(sprintf('delete  %s (#%d)', get_post_meta($post_id, self::META_SOURCE, true), $post_id));
 			if (!$this->dry_run) {
@@ -483,6 +650,12 @@ final class CourseImporter
 				'suppress_filters' => true,
 			]);
 			$post_id = (int) ($existing[0] ?? 0);
+		}
+
+		// Re-import keeps the site status (publish stays publish); front-matter status applies on create,
+		// --status only when given explicitly.
+		if ($post_id > 0 && $this->status === '') {
+			$postarr['post_status'] = (string) get_post_status($post_id);
 		}
 
 		if ($post_id > 0 && !$this->force

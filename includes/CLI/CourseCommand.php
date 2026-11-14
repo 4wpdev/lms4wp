@@ -49,9 +49,13 @@ class CourseCommand
 	 * [--dry-run]
 	 * : Show what would happen, write nothing.
 	 *
+	 * [--queue]
+	 * : Import in the background (Action Scheduler): course → one job per module → verify. See `wp lms4wp course status`.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     wp lms4wp course import ~/4wp-publish-hub/LMS4WP/courses/git-basics --replace --status=publish
+	 *     wp lms4wp course import ~/4wp-publish-hub/LMS4WP/courses/git-basics --queue
 	 *
 	 * @param array<int, string>    $args       Positional arguments.
 	 * @param array<string, mixed> $assoc_args Associative arguments.
@@ -61,6 +65,26 @@ class CourseCommand
 		$dry_run = isset($assoc_args['dry-run']);
 		$commit = $this->hubCommit($args[0]);
 		$author = $this->author((string) ($assoc_args['author'] ?? ''));
+
+		if (isset($assoc_args['queue'])) {
+			if ($dry_run || isset($assoc_args['force'])) {
+				\WP_CLI::error('--queue cannot be combined with --dry-run or --force.');
+			}
+			$reader = new \ForWP\LMS\Import\FilesystemPackageReader($args[0]);
+			\ForWP\LMS\Queue\ImportQueue::enqueue($reader, [
+				'status'  => (string) ($assoc_args['status'] ?? ''),
+				'author'  => $author,
+				'commit'  => $commit,
+				'replace' => isset($assoc_args['replace']),
+			]);
+			\WP_CLI::success(sprintf(
+				'Queued "%s"%s. Progress: wp lms4wp course status %s',
+				$reader->slug(),
+				\ForWP\LMS\Queue\ImportQueue::available() ? '' : ' (no Action Scheduler — ran inline)',
+				$reader->slug()
+			));
+			return;
+		}
 
 		$importer = new CourseImporter(
 			[
@@ -138,6 +162,42 @@ class CourseCommand
 	}
 
 	/**
+	 * Background import state of a course.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <slug>
+	 * : Course slug (package folder), e.g. git-basics
+	 *
+	 * @param array<int, string>    $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Associative arguments.
+	 */
+	public function status(array $args, array $assoc_args): void
+	{
+		$state = \ForWP\LMS\Queue\ImportQueue::state(sanitize_title($args[0]));
+		if (!$state) {
+			\WP_CLI::error('No background import for this course.');
+		}
+		\WP_CLI::log(sprintf(
+			'%s: %s, modules %d/%d, failed %d, course #%d, started %s, finished %s',
+			$state['slug'] ?? $args[0],
+			$state['state'] ?? '?',
+			(int) ($state['done'] ?? 0),
+			(int) ($state['total'] ?? 0),
+			(int) ($state['failed'] ?? 0),
+			(int) ($state['course_id'] ?? 0),
+			$state['started_at'] ?? '—',
+			$state['finished_at'] ?? '—'
+		));
+		foreach ((array) ($state['errors'] ?? []) as $error) {
+			\WP_CLI::warning($error);
+		}
+		foreach ((array) ($state['issues'] ?? []) as $issue) {
+			\WP_CLI::log('verify: ' . $issue);
+		}
+	}
+
+	/**
 	 * Resolve author: ID, login or email; default — first administrator.
 	 */
 	private function author(string $value): int
@@ -169,11 +229,13 @@ class CourseCommand
 		$git = 'git -C ' . escapeshellarg($dir);
 		$hash = [];
 		$code = 0;
-		exec($git . ' log -1 --format=%h -- . 2>/dev/null', $hash, $code);
+		// meta.json is written by 4wp-drive (import state) — not part of the course content.
+		$pathspec = ' -- . ' . escapeshellarg(':(exclude)meta.json');
+		exec($git . ' log -1 --format=%h' . $pathspec . ' 2>/dev/null', $hash, $code);
 		$hash = $code === 0 ? trim($hash[0] ?? '') : '';
 
 		$dirty = [];
-		exec($git . ' status --porcelain -- . 2>/dev/null', $dirty);
+		exec($git . ' status --porcelain' . $pathspec . ' 2>/dev/null', $dirty);
 
 		if ($hash === '' || $dirty) {
 			\WP_CLI::warning('Course package has uncommitted changes in the hub — git is the source of truth.');
