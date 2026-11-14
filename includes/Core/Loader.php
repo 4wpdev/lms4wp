@@ -36,6 +36,7 @@ class Loader
 		// Post Types (always required)
 		require_once $includes_dir . 'PostTypes/Course.php';
 		require_once $includes_dir . 'PostTypes/Lesson.php';
+		require_once $includes_dir . 'PostTypes/Module.php';
 		require_once $includes_dir . 'PostTypes/Quiz.php';
 		require_once $includes_dir . 'PostTypes/PracticeCase.php';
 		require_once $includes_dir . 'PostTypes/Book.php';
@@ -59,7 +60,14 @@ class Loader
 		require_once $includes_dir . 'Blocks/CourseBlocks.php';
 		require_once $includes_dir . 'Frontend/CourseTemplates.php';
 		require_once $includes_dir . 'Integrations/AdvancedCodeTerminal.php';
+		require_once $includes_dir . 'Import/FrontMatter.php';
+		require_once $includes_dir . 'Import/MarkdownBlocks.php';
+		require_once $includes_dir . 'Import/PackageReader.php';
+		require_once $includes_dir . 'Import/FilesystemPackageReader.php';
+		require_once $includes_dir . 'Import/DrivePackageReader.php';
 		require_once $includes_dir . 'Import/CourseImporter.php';
+		require_once $includes_dir . 'Queue/ImportQueue.php';
+		require_once $includes_dir . 'Integrations/Drive.php';
 
 		if (defined('WP_CLI') && WP_CLI && file_exists($includes_dir . 'CLI/PracticeCaseCommand.php')) {
 			require_once $includes_dir . 'CLI/PracticeCaseCommand.php';

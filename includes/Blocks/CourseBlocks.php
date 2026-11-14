@@ -2,7 +2,8 @@
 /**
  * Dynamic course / lesson blocks used by the course and lesson templates.
  *
- * - lms4wp/course-meta     — "7 modules · 26 lessons"
+ * - lms4wp/course-meta     — modules, lessons, level, free lessons (icons)
+ * - lms4wp/course-media    — cover (featured image or placeholder) + "This course includes"
  * - lms4wp/course-join     — start / join / continue button
  * - lms4wp/course-outline  — modules → lessons (course page, lesson sidebar)
  * - lms4wp/lesson-context  — course › module, "lesson N of M"
@@ -60,6 +61,7 @@ final class CourseBlocks
 
 		$blocks = [
 			'course-meta'    => [__('Course Meta', 'lms4wp'), [], 'renderCourseMeta'],
+			'course-media'   => [__('Course Media', 'lms4wp'), [], 'renderCourseMedia'],
 			'course-join'    => [__('Course Join Button', 'lms4wp'), [], 'renderCourseJoin'],
 			'course-outline' => [
 				__('Course Outline', 'lms4wp'),
@@ -114,7 +116,59 @@ final class CourseBlocks
 	private static function postId(\WP_Block $block): int
 	{
 		$post_id = (int) ($block->context['postId'] ?? 0);
-		return $post_id > 0 ? $post_id : (int) get_the_ID();
+		$post_id = $post_id > 0 ? $post_id : (int) get_the_ID();
+		if ($post_id > 0 && in_array(get_post_type($post_id), [Course::POST_TYPE, Lesson::POST_TYPE], true)) {
+			return $post_id;
+		}
+
+		// Site Editor / template preview: no real course or lesson — show a real sample instead of an empty block.
+		if (self::isEditorPreview()) {
+			return ($block->context['postType'] ?? '') === Course::POST_TYPE ? self::sampleCourseId() : self::sampleLessonId();
+		}
+
+		return $post_id;
+	}
+
+	private static function isEditorPreview(): bool
+	{
+		$rest = function_exists('wp_is_serving_rest_request') ? wp_is_serving_rest_request() : (defined('REST_REQUEST') && REST_REQUEST);
+		return $rest && current_user_can('edit_posts');
+	}
+
+	/**
+	 * Latest published course that has lessons (editor preview).
+	 */
+	private static function sampleCourseId(): int
+	{
+		static $id = null;
+		if ($id !== null) {
+			return $id;
+		}
+		$id = 0;
+		$courses = get_posts([
+			'post_type'      => Course::POST_TYPE,
+			'post_status'    => 'publish',
+			'posts_per_page' => 10,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+		]);
+		foreach ($courses as $course_id) {
+			if (CourseStructure::lessons((int) $course_id)) {
+				$id = (int) $course_id;
+				break;
+			}
+		}
+		return $id;
+	}
+
+	/**
+	 * A lesson of the sample course with both neighbours (editor preview).
+	 */
+	private static function sampleLessonId(): int
+	{
+		$lessons = CourseStructure::lessons(self::sampleCourseId());
+		$lesson = $lessons[1] ?? $lessons[0] ?? null;
+		return $lesson ? (int) $lesson->ID : 0;
 	}
 
 	private static function wrapper(string $class, string $html, string $tag = 'div'): string
@@ -140,22 +194,87 @@ final class CourseBlocks
 			return '';
 		}
 
-		$modules = array_filter(CourseStructure::modules($course_id), static fn(array $m): bool => $m['key'] !== '');
+		$modules = count(array_filter(CourseStructure::modules($course_id), static fn(array $m): bool => $m['key'] !== ''));
 		$lessons = count(CourseStructure::lessons($course_id));
+		$levels = wp_get_post_terms($course_id, 'lms_level', ['fields' => 'names']);
+		$free = min(LessonAccess::guestLessons($course_id), $lessons);
 
 		$items = [];
 		if ($modules) {
 			/* translators: %d: number of modules */
-			$items[] = sprintf(_n('%d module', '%d modules', count($modules), 'lms4wp'), count($modules));
+			$items[] = ['layers', sprintf(_n('%d module', '%d modules', $modules, 'lms4wp'), $modules)];
 		}
 		/* translators: %d: number of lessons */
-		$items[] = sprintf(_n('%d lesson', '%d lessons', $lessons, 'lms4wp'), $lessons);
+		$items[] = ['book-open', sprintf(_n('%d lesson', '%d lessons', $lessons, 'lms4wp'), $lessons)];
+		if (!is_wp_error($levels) && $levels) {
+			$items[] = ['signal', implode(', ', $levels)];
+		}
+		if ($free > 0) {
+			/* translators: %d: number of lessons open without sign-in */
+			$items[] = ['lock-open', sprintf(_n('%d free lesson', '%d free lessons', $free, 'lms4wp'), $free)];
+		}
 
 		$html = '';
-		foreach ($items as $item) {
-			$html .= '<span class="lms4wp-course-meta__item">' . esc_html($item) . '</span>';
+		foreach ($items as [$icon, $label]) {
+			$html .= '<span class="lms4wp-course-meta__item">' . Icons::svg($icon, 16) . '<span>' . esc_html($label) . '</span></span>';
 		}
 		return self::wrapper('lms4wp-course-meta', $html);
+	}
+
+	public static function renderCourseMedia(array $attributes, string $content, \WP_Block $block): string
+	{
+		$course_id = self::courseId($block);
+		if ($course_id === 0) {
+			return '';
+		}
+
+		$media = has_post_thumbnail($course_id)
+			? get_the_post_thumbnail($course_id, 'large', ['class' => 'lms4wp-course-media__image'])
+			: '<div class="lms4wp-course-media__placeholder">' . Icons::svg('graduation-cap', 56) . '<span>' . esc_html(get_the_title($course_id)) . '</span></div>';
+
+		// What the course includes.
+		$lessons = count(CourseStructure::lessons($course_id));
+		$modules = count(array_filter(CourseStructure::modules($course_id), static fn(array $m): bool => $m['key'] !== ''));
+		$terminals = array_filter(
+			\ForWP\LMS\PostTypes\Module::forCourse($course_id),
+			static fn(\WP_Post $m): bool => is_array(get_post_meta($m->ID, '_lms4wp_terminal', true))
+		);
+		$free = min(LessonAccess::guestLessons($course_id), $lessons);
+
+		$includes = [];
+		/* translators: 1: lessons, 2: modules */
+		$includes[] = ['book-open', sprintf(__('%1$d lessons in %2$d modules', 'lms4wp'), $lessons, $modules)];
+		if (is_array($terminals) && $terminals) {
+			$includes[] = ['terminal', __('Practice terminal in lessons', 'lms4wp')];
+		}
+		$includes[] = ['circle-help', __('Interview questions with answers', 'lms4wp')];
+		$includes[] = ['circle-check', __('Progress tracking', 'lms4wp')];
+		if ($free > 0) {
+			/* translators: %d: number of lessons open without sign-in */
+			$includes[] = ['lock-open', sprintf(_n('First %d lesson without sign-in', 'First %d lessons without sign-in', $free, 'lms4wp'), $free)];
+		}
+
+		$list = '';
+		foreach ($includes as [$icon, $label]) {
+			$list .= '<li>' . Icons::svg($icon, 16) . '<span>' . esc_html($label) . '</span></li>';
+		}
+
+		// Card actions: guest — sign in / create account (back to the course); signed in — join / progress.
+		if (!is_user_logged_in()) {
+			$actions = '<p class="lms4wp-course-media__hint">' . esc_html__('Sign in or create a free account to save your progress.', 'lms4wp') . '</p>'
+				. '<div class="wp-block-buttons">' . LessonAccess::authButtons($course_id) . '</div>';
+		} else {
+			$actions = self::renderCourseJoin([], '', $block);
+		}
+
+		return self::wrapper(
+			'lms4wp-course-media',
+			'<div class="lms4wp-course-media__frame">' . $media . '</div>'
+			. '<div class="lms4wp-course-media__body"><p class="lms4wp-course-media__title">' . esc_html__('This course includes', 'lms4wp') . '</p>'
+			. '<ul class="lms4wp-course-media__includes">' . $list . '</ul>'
+			. '<div class="lms4wp-course-media__actions">' . $actions . '</div></div>',
+			'aside'
+		);
 	}
 
 	public static function renderCourseJoin(array $attributes, string $content, \WP_Block $block): string
@@ -309,19 +428,16 @@ final class CourseBlocks
 			return '';
 		}
 
-		// Guest on an open lesson: invite to sign in to save progress.
+		// Guest on an open lesson: sign in / create account to save progress (back to this lesson).
 		if (!is_user_logged_in()) {
 			if (!LessonAccess::canView($lesson_id)) {
 				return '';
 			}
-			$html = '<p class="lms4wp-lesson-complete__hint">'
-				. sprintf(
-					'<a href="%s">%s</a> %s',
-					esc_url(LessonAccess::loginUrl($lesson_id)),
-					esc_html__('Sign in', 'lms4wp'),
-					esc_html__('to save your progress.', 'lms4wp')
-				)
-				. '</p>';
+			$html = '<div class="lms4wp-auth">'
+				. '<div class="lms4wp-auth__text"><p class="lms4wp-auth__title">' . esc_html__('Save your progress', 'lms4wp') . '</p>'
+				. '<p class="lms4wp-auth__desc">' . esc_html__('Sign in or create a free account to mark lessons as completed and continue the whole course. You will come back to this lesson.', 'lms4wp') . '</p></div>'
+				. '<div class="wp-block-buttons">' . LessonAccess::authButtons($lesson_id) . '</div>'
+				. '</div>';
 			return self::wrapper('lms4wp-lesson-complete', $html);
 		}
 
@@ -356,7 +472,7 @@ final class CourseBlocks
 			return '';
 		}
 
-		$html = sprintf(
+		$crumbs = sprintf(
 			'<a class="lms4wp-lesson-context__course" href="%s">%s</a>',
 			esc_url((string) get_permalink($context['course_id'])),
 			esc_html(get_the_title($context['course_id']))
@@ -366,15 +482,29 @@ final class CourseBlocks
 				/* translators: 1: module number, 2: module title */
 				? sprintf(__('Module %1$d. %2$s', 'lms4wp'), $context['module']['number'], $context['module']['title'])
 				: $context['module']['title'];
-			$html .= Icons::svg('chevron-right', 14, 'lms4wp-lesson-context__sep')
+			$crumbs .= Icons::svg('chevron-right', 14, 'lms4wp-lesson-context__sep')
 				. '<span class="lms4wp-lesson-context__module">' . esc_html($label) . '</span>';
 		}
+
+		// Position + quick previous / next.
+		$pager = '';
 		if ($context['index'] > 0) {
-			/* translators: 1: lesson position, 2: total lessons */
-			$html .= '<span class="lms4wp-lesson-context__progress">' . esc_html(sprintf(__('Lesson %1$d of %2$d', 'lms4wp'), $context['index'], $context['total'])) . '</span>';
+			$arrow = static function (?\WP_Post $target, string $icon, string $label): string {
+				return $target
+					? sprintf('<a class="lms4wp-lesson-context__arrow" href="%s" aria-label="%s" title="%s">%s</a>', esc_url((string) get_permalink($target)), esc_attr($label), esc_attr(get_the_title($target)), Icons::svg($icon, 18))
+					: '<span class="lms4wp-lesson-context__arrow is-disabled" aria-hidden="true">' . Icons::svg($icon, 18) . '</span>';
+			};
+			$percent = $context['total'] > 0 ? (int) round($context['index'] * 100 / $context['total']) : 0;
+			$pager = '<div class="lms4wp-lesson-context__pager">'
+				. $arrow($context['prev'], 'chevron-left', __('Previous lesson', 'lms4wp'))
+				/* translators: 1: lesson position, 2: total lessons */
+				. '<span class="lms4wp-lesson-context__progress">' . esc_html(sprintf(__('Lesson %1$d of %2$d', 'lms4wp'), $context['index'], $context['total'])) . '</span>'
+				. $arrow($context['next'], 'chevron-right', __('Next lesson', 'lms4wp'))
+				. '</div>'
+				. '<div class="lms4wp-lesson-context__track" aria-hidden="true"><span style="width:' . esc_attr((string) $percent) . '%"></span></div>';
 		}
 
-		return self::wrapper('lms4wp-lesson-context', $html, 'nav');
+		return self::wrapper('lms4wp-lesson-context', '<div class="lms4wp-lesson-context__crumbs">' . $crumbs . '</div>' . $pager, 'nav');
 	}
 
 	public static function renderLessonTerminal(array $attributes, string $content, \WP_Block $block): string

@@ -38,6 +38,11 @@ if (file_exists(LMS4WP_PATH . 'vendor/autoload.php')) {
 	require_once LMS4WP_PATH . 'vendor/autoload.php';
 }
 
+// Action Scheduler (background import queue, ADR 0007). Loads the newest copy among active plugins.
+if (file_exists(LMS4WP_PATH . 'vendor/woocommerce/action-scheduler/action-scheduler.php')) {
+	require_once LMS4WP_PATH . 'vendor/woocommerce/action-scheduler/action-scheduler.php';
+}
+
 /**
  * Main plugin class
  */
@@ -225,6 +230,7 @@ class Plugin
 		// Initialize post types (always available)
 		PostTypes\Course::init();
 		PostTypes\Lesson::init();
+		PostTypes\Module::init();
 		PostTypes\Quiz::init();
 		PostTypes\Book::init();
 		Taxonomies\PracticeCaseTaxonomies::init();
@@ -238,6 +244,8 @@ class Plugin
 		Blocks\CourseBlocks::init();
 		Frontend\CourseTemplates::init();
 		Integrations\AdvancedCodeTerminal::init();
+		Integrations\Drive::init();
+		Queue\ImportQueue::init();
 
 		if (class_exists('ForWP\LMS\Frontend\PracticeCaseDisplay')) {
 			Frontend\PracticeCaseDisplay::init();

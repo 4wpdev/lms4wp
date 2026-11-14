@@ -155,6 +155,39 @@ final class LessonAccess
 	}
 
 	/**
+	 * Sign-up URL: 4wp-account page in register mode when password sign-up is on,
+	 * otherwise the same account page (accounts are created on first provider sign-in).
+	 */
+	public static function registerUrl(int $lesson_id): string
+	{
+		$url = self::loginUrl($lesson_id);
+		$can_register = class_exists('\\ForWP\\Account\\Auth\\PasswordAuth')
+			? \ForWP\Account\Auth\PasswordAuth::can_register()
+			: (bool) get_option('users_can_register');
+		$url = $can_register ? add_query_arg('form', 'register', $url) : $url;
+
+		/**
+		 * Sign-up URL for lessons.
+		 *
+		 * @param string $url       Account page URL.
+		 * @param int    $lesson_id Lesson ID.
+		 */
+		return (string) apply_filters('lms4wp_register_url', $url, $lesson_id);
+	}
+
+	/**
+	 * "Sign in" + "Create account" buttons (both return to the lesson).
+	 */
+	public static function authButtons(int $lesson_id): string
+	{
+		$icon = static fn(string $name): string => \ForWP\LMS\Frontend\Icons::svg($name, 18);
+		return '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="' . esc_url(self::loginUrl($lesson_id)) . '">'
+			. $icon('log-in') . '<span>' . esc_html__('Sign in', 'lms4wp') . '</span></a></div>'
+			. '<div class="wp-block-button is-style-outline"><a class="wp-block-button__link wp-element-button" href="' . esc_url(self::registerUrl($lesson_id)) . '">'
+			. $icon('user-plus') . '<span>' . esc_html__('Create account', 'lms4wp') . '</span></a></div>';
+	}
+
+	/**
 	 * WooCommerce product that sells the course (ADR 0002), 0 — free course.
 	 */
 	public static function productId(int $course_id): int
@@ -198,9 +231,8 @@ final class LessonAccess
 					$free
 				)) . '</p>';
 			}
-			$html .= '<div class="wp-block-buttons">'
-				. '<div class="wp-block-button"><a class="wp-block-button__link wp-element-button" href="' . esc_url(self::loginUrl($lesson_id)) . '">' . esc_html__('Sign in to continue', 'lms4wp') . '</a></div>'
-				. $back . '</div>';
+			$html .= '<div class="wp-block-buttons">' . self::authButtons($lesson_id) . '</div>';
+			$html .= '<p class="lms4wp-locked__back"><a href="' . esc_url((string) get_permalink($course_id)) . '">' . esc_html__('Back to course', 'lms4wp') . '</a></p>';
 		} elseif ($course_id && ($product_id = self::productId($course_id))) {
 			$html .= '<p class="lms4wp-locked__title">' . esc_html__('This lesson is part of a paid course', 'lms4wp') . '</p>';
 			$html .= '<div class="wp-block-buttons">'

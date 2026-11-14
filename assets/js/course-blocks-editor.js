@@ -11,6 +11,7 @@
 
 	const names = [
 		'lms4wp/course-meta',
+		'lms4wp/course-media',
 		'lms4wp/course-join',
 		'lms4wp/course-outline',
 		'lms4wp/lesson-context',
