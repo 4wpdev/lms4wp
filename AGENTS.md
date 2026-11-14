@@ -29,6 +29,7 @@
 - Робота — лише на локалі `https://4wpdev.local/`. Прод `https://4wp.dev/` — лише для посилань.
 - Сайт — Bedrock: `~/Local Sites/4wpdev/app/4wp.dev` (`public` → `4wp.dev/web`). Плагіни 4wp-* і lms4wp — симлінки `web/app/plugins/*` → `~/Projects/4wpdev/*`. Код у репо = код на сайті.
 - `~/Local Sites/4wpdev/app/public-local` — окрема стара інсталяція з тією ж базою; сайт її не обслуговує. Для WP-CLI не використовувати.
+- Залежності lms4wp: `composer install --no-dev` (Action Scheduler у `vendor/`, у `.gitignore`).
 - WP-CLI — з `app/4wp.dev` (є `wp-cli.yml`): `php -d memory_limit=512M -d mysqli.default_socket="$HOME/Library/Application Support/Local/run/<site-id>/mysql/mysqld.sock" $(which wp) …` (сайт має бути запущений у Local).
 - Контент — у хабі `~/4wp-publish-hub/LMS4WP/`. Хаб — джерело істини; на сайт контент лише імпортується.
 

@@ -23,13 +23,33 @@ flowchart LR
 
 ```
 courses/<course-slug>/
+├── meta.json                    → пакет 4wp-drive (ADR 0007)
 ├── course-structure.md          → Курс (lms_course)
-└── module-<N>-<slug>/           → Модуль (мета курсу, ADR 0004)
-    ├── requirements.md          → назва і мета модуля
+└── module-<N>-<slug>/           → Модуль (lms_module, post_parent = курс, ADR 0008)
+    ├── requirements.md          → пост модуля: title, опис, мета (type: module)
     ├── lesson-plan.md           → не імпортується
-    ├── terminal.json            → термінал чаптера (мета курсу, ADR 0006)
+    ├── terminal.json            → термінал чаптера (мета модуля _lms4wp_terminal, ADR 0006)
     └── lesson-<N>-<M>-<slug>.md → Урок (lms_lesson)
 ```
+
+## meta.json (пакет 4wp-drive)
+
+```json
+{
+  "schema": 1,
+  "package":  { "id": "git-basics", "lang": "uk", "author": "…", "type": "lms-course", "series": "Git" },
+  "original": { "file": "course-structure.md", "role": "import", "post_type": "lms_course" }
+}
+```
+
+Після імпорту Drive дописує `original` (`status`, `post_id`, …), LMS4WP — `lms`:
+
+```json
+"lms": { "state": "done", "course_id": 3552, "lessons": { "module-1-basics/lesson-1-1-what-is-vcs.md": 3553 },
+         "commit": "773843d", "verify": "ok", "errors": [], "finished_at": "…" }
+```
+
+Імпорт на порталі: 4wp-drive Inbox → пакет курсу → тип «Course» → Import. Далі фонова черга (Action Scheduler): курс → модулі → `verify`.
 
 ## Front-matter
 
@@ -57,8 +77,8 @@ status: draft
 | `course-structure.md` → `title` | `post_title` курсу | частина до ` — ` |
 | `course-structure.md` → тіло | `post_content` курсу | Markdown → блоки, без H1 |
 | `module-<N>-<slug>` (тека) | ключ модуля | номер `N` — порядок |
-| `requirements.md` → `title` | назва модуля | без `Модуль N. ` і ` — вимоги` |
-| `requirements.md` → `## Мета модуля` | мета модуля | перший абзац |
+| `requirements.md` → `title` (`type: module`) | `lms_module.post_title` | чиста назва (`Основи Git`); старий формат «Модуль N. … — вимоги» теж розбирається |
+| `requirements.md` → `## Мета модуля` | `lms_module.post_excerpt` | перший абзац; тіло файлу → `post_content` модуля |
 | `lesson-*.md` → `title` | `post_title` уроку | |
 | `<course-slug>-` + `slug` | `post_name` уроку | префікс — від колізій між курсами |
 | `lesson-*.md` → тіло | `post_content` уроку | Markdown → блоки, без H1 |
@@ -72,9 +92,10 @@ status: draft
 | `_lms4wp_source` | курс, урок | шлях відносно `courses/` — ключ для повторного імпорту |
 | `_lms4wp_source_hash` | курс, урок | sha1 файлу — пропуск незмінених, `verify` |
 | `_lms4wp_source_commit` | курс | коміт хабу; `-dirty` / `uncommitted` — якщо є незакомічені зміни |
-| `_lms4wp_modules` | курс | `[{key, number, title, goal}]` |
+| `_lms4wp_module_key` | модуль | ключ теки (`module-1-basics`) |
+| `_lms4wp_terminal` | модуль | `terminal.json` чаптера |
 | `_lms4wp_course_id` | урок | ID курсу (наявний ключ) |
-| `_lms4wp_module` | урок | ключ модуля |
+| `lms_module_tax` | урок | термін модуля (тіньова таксономія, ADR 0008) |
 | `_lms4wp_order` | урок | порядок (наявний ключ) |
 | `lms_level`, `lms_tag` | курс, урок | таксономії з front-matter `level`, `tags` |
 
@@ -110,6 +131,7 @@ status: draft
 ```
 
 - `commands` — формат профілю 4wp-advanced-code (`command` або `pattern`, непорожній `output`).
+- Сценарій зі станом (модуль 1 — зразок): `state` (початковий стан), `persist: "session"`, у командах — `pattern` зі змінними `{value}`, `example`, `variants` з `when`, `set`, `reset`. Пам'ять спільна для всіх уроків розділу (`stateKey` = курс + модуль). Формат — `4wp-advanced-code/docs/hooks.md`.
 - Ключ у `lessons` — ім'я файлу уроку без `.md`.
 - Сайдбар: «This lesson» — команди уроку, «Chapter» — решта; працюють усі команди чаптера.
 - ```` ```terminal ```` з `profile: <slug>` — звичайний профіль 4wp-advanced-code (без чаптера).
@@ -137,9 +159,12 @@ status: draft
 ## Команди
 
 ```bash
-wp lms4wp course import <path> [--replace] [--status=<draft|publish>] [--force] [--dry-run]
+wp lms4wp course import <path> [--replace] [--status=<draft|publish>] [--author=<user>] [--force] [--dry-run] [--queue]
+wp lms4wp course status <slug>
 wp lms4wp course verify <path>
 ```
+
+- `--queue` — фоновий імпорт через Action Scheduler (як з Drive); прогрес — `status`.
 
 - `--replace` — видаляє курс і його уроки на сайті (за `_lms4wp_source`), потім імпортує. Нові ID — лише до запуску курсу для студентів.
 - `--status` — перевизначає `status` з front-matter.
