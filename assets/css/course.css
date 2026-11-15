@@ -288,6 +288,14 @@
   color: #5f6368;
   font-size: 0.875rem;
 }
+.lms4wp-module__count.is-done {
+  color: #1e8e3e;
+  font-weight: 600;
+}
+.lms4wp-outline.is-compact .lms4wp-progress {
+  margin: 0.25rem 0 1rem;
+  font-size: 0.8125rem;
+}
 .lms4wp-module__chevron {
   margin-left: auto;
   align-self: center;

@@ -359,6 +359,13 @@ final class CourseBlocks
 			? sprintf('<p class="lms4wp-outline__heading"><a href="%s">%s</a></p>', esc_url((string) get_permalink($course_id)), esc_html($heading))
 			: '<h2 class="lms4wp-outline__heading">' . esc_html($heading) . '</h2>';
 
+		// Lesson sidebar: the learner's progress right under the course title.
+		$user_id = get_current_user_id();
+		if ($compact && $user_id > 0) {
+			$summary = Progress::summary($user_id, $course_id);
+			$html .= self::progressBar($summary['completed'], $summary['total'], $summary['percent']);
+		}
+
 		$html .= '<ol class="lms4wp-outline__modules">';
 		foreach ($modules as $module) {
 			$ids = wp_list_pluck($module['lessons'], 'ID');
@@ -373,8 +380,13 @@ final class CourseBlocks
 				$html .= '<span class="lms4wp-module__number">' . esc_html(sprintf(__('Module %d', 'lms4wp'), $module['number'])) . '</span>';
 			}
 			$html .= '<span class="lms4wp-module__title">' . esc_html($module['title'] !== '' ? $module['title'] : __('Lessons', 'lms4wp')) . '</span>';
-			/* translators: %d: number of lessons */
-			$html .= '<span class="lms4wp-module__count">' . esc_html(sprintf(_n('%d lesson', '%d lessons', $count, 'lms4wp'), $count)) . '</span>';
+			$done = count(array_intersect($ids, $completed_ids));
+			$count_label = $user_id > 0 && $done > 0
+				/* translators: 1: completed lessons, 2: lessons in the module */
+				? sprintf(__('%1$d/%2$d', 'lms4wp'), $done, $count)
+				/* translators: %d: number of lessons */
+				: sprintf(_n('%d lesson', '%d lessons', $count, 'lms4wp'), $count);
+			$html .= '<span class="lms4wp-module__count' . ($done === $count && $count > 0 ? ' is-done' : '') . '">' . esc_html($count_label) . '</span>';
 			$html .= Icons::svg('chevron-down', 18, 'lms4wp-module__chevron');
 			$html .= '</summary>';
 
