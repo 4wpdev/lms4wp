@@ -87,7 +87,14 @@ final class MarkdownBlocks
 				for ($i++; $i < $count && !preg_match('/^\s*```\s*$/', $lines[$i]); $i++) {
 					$code[] = rtrim($lines[$i], "\r");
 				}
-				$push(strtolower($m[1]) === 'terminal' ? self::terminal($code) : self::code(implode("\n", $code), $m[1]));
+				$lang = strtolower($m[1]);
+				if ($lang === 'terminal') {
+					$push(self::terminal($code));
+				} elseif ($lang === 'mermaid') {
+					$push(self::diagram(implode("\n", $code)));
+				} else {
+					$push(self::code(implode("\n", $code), $m[1]));
+				}
 				continue;
 			}
 
@@ -191,6 +198,15 @@ final class MarkdownBlocks
 	}
 
 	/**
+	 * Mermaid fence → 4wp-advanced-code diagram block (same markup as its Drive mapping).
+	 */
+	private static function diagram(string $code): string
+	{
+		$code = trim($code);
+		return $code === '' ? '' : '<!-- wp:forwp/diagram' . self::attrs(['code' => $code]) . ' /-->';
+	}
+
+	/**
 	 * 4wp-advanced-code terminal from "key: value" lines (profile, welcome).
 	 *
 	 * @param string[] $lines
@@ -284,12 +300,12 @@ final class MarkdownBlocks
 		$aliases = [
 			'sh' => 'bash', 'shell' => 'bash', 'zsh' => 'bash', 'console' => 'bash', 'terminal' => 'bash',
 			'js' => 'javascript', 'ts' => 'typescript', 'yml' => 'yaml', 'md' => 'markdown',
-			'text' => 'plaintext', 'txt' => 'plaintext', 'ps1' => 'powershell', 'htm' => 'html',
+			'text' => 'plaintext', 'txt' => 'plaintext', 'ps1' => 'powershell', 'htm' => 'html', 'gql' => 'graphql',
 		];
 		$lang = $aliases[$lang] ?? $lang;
 		$supported = [
 			'php', 'javascript', 'typescript', 'html', 'css', 'scss', 'python', 'json', 'sql',
-			'bash', 'powershell', 'yaml', 'xml', 'markdown', 'plaintext', 'mermaid',
+			'bash', 'powershell', 'yaml', 'xml', 'markdown', 'plaintext', 'mermaid', 'graphql', 'liquid',
 		];
 		return in_array($lang, $supported, true) ? $lang : 'plaintext';
 	}

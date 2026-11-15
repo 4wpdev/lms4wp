@@ -29,7 +29,7 @@ final class CourseImporter
 
 	const TAXONOMY_LEVEL = 'lms_level';
 	const TAXONOMY_TAG   = 'lms_tag';
-	const FAQ_SECTIONS   = ["Питання з інтерв'ю", 'FAQ'];
+	const FAQ_SECTIONS   = ["Питання з інтерв'ю", 'Interview Questions', 'FAQ'];
 
 	const COURSE_FILE = 'course-structure.md';
 	const MODULE_FILE = 'requirements.md';
@@ -117,9 +117,9 @@ final class CourseImporter
 					'post_status'  => $this->statusFor($course['doc']['meta']),
 				],
 				// Guest access (ADR 0003): front-matter "guest_lessons" → course setting.
-				isset($course['doc']['meta']['guest_lessons'])
+				(isset($course['doc']['meta']['guest_lessons'])
 					? ['_lms4wp_guest_lessons' => absint($course['doc']['meta']['guest_lessons'])]
-					: [],
+					: []) + $this->seoMetaFor($course['doc']['meta']),
 				$this->termsFor($course['doc']['meta'])
 			);
 			if (is_wp_error($course_id)) {
@@ -204,7 +204,7 @@ final class CourseImporter
 				[
 					self::META_COURSE_ID => $course_id,
 					self::META_ORDER     => $lesson['order'],
-				],
+				] + $this->seoMetaFor($lesson['doc']['meta']),
 				$this->termsFor($lesson['doc']['meta'])
 			);
 			// Module via the shadow taxonomy (also when the file itself did not change).
@@ -315,6 +315,43 @@ final class CourseImporter
 			self::TAXONOMY_LEVEL => $level !== '' ? [$level] : [],
 			self::TAXONOMY_TAG   => FrontMatter::listValue($meta['tags'] ?? ''),
 		];
+	}
+
+	/**
+	 * SEO post meta from front-matter (same keys as 4wp-drive Seo_Meta_Applicator).
+	 *
+	 * yoast_seo_title → _yoast_wpseo_title; yoast_seo_description → _yoast_wpseo_metadesc;
+	 * focus_keyword → _yoast_wpseo_focuskw; focus_keyword + keywords → 4wp-seo-helper keyphrases.
+	 * Only keys present in the file are written, so a re-import never wipes SEO set on the site.
+	 *
+	 * @param array<string, string> $meta Front-matter.
+	 * @return array<string, string>
+	 */
+	private function seoMetaFor(array $meta): array
+	{
+		$out = [];
+		$map = [
+			'yoast_seo_title'       => '_yoast_wpseo_title',
+			'yoast_seo_description' => '_yoast_wpseo_metadesc',
+			'focus_keyword'         => '_yoast_wpseo_focuskw',
+		];
+		foreach ($map as $key => $meta_key) {
+			$value = sanitize_text_field((string) ($meta[$key] ?? ''));
+			if ($value !== '') {
+				$out[$meta_key] = $value;
+			}
+		}
+
+		$phrases = array_merge(
+			isset($out['_yoast_wpseo_focuskw']) ? [$out['_yoast_wpseo_focuskw']] : [],
+			array_map('sanitize_text_field', FrontMatter::listValue($meta['keywords'] ?? ''))
+		);
+		$phrases = array_values(array_unique(array_filter($phrases, 'strlen')));
+		if ($phrases) {
+			$out['_forwp_seo_focus_keyphrases'] = implode("\n", $phrases);
+		}
+
+		return $out;
 	}
 
 	/**
@@ -431,7 +468,7 @@ final class CourseImporter
 				}
 				$module_title = $raw !== '' ? $raw : $key;
 				$label = $label !== '' ? $label : $module_title;
-				if (preg_match('/^##\s+Мета модуля\s*\n+(.+?)(?:\n\s*\n|\n#|\z)/msu', $module_doc['body'], $g)) {
+				if (preg_match('/^##\s+(?:Мета модуля|Module goal)\s*\n+(.+?)(?:\n\s*\n|\n#|\z)/msu', $module_doc['body'], $g)) {
 					$goal = trim(preg_replace('/\s+/u', ' ', $g[1]) ?? $g[1]);
 				}
 			}
@@ -691,7 +728,8 @@ final class CourseImporter
 		$meta[self::META_SOURCE] = $source;
 		$meta[self::META_SOURCE_HASH] = $hash;
 		foreach ($meta as $key => $value) {
-			update_post_meta((int) $result, $key, $value);
+			// update_post_meta() unslashes: keep backslashes in terminal output (git graph "|\\").
+			update_post_meta((int) $result, $key, wp_slash($value));
 		}
 		foreach ($terms as $taxonomy => $names) {
 			if (taxonomy_exists($taxonomy)) {
