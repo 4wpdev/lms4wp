@@ -24,6 +24,7 @@ final class CourseImporter
 	const META_SOURCE_HASH   = '_lms4wp_source_hash';
 	const META_SOURCE_COMMIT = '_lms4wp_source_commit';
 	const META_TERMINAL      = '_lms4wp_terminal'; // On the module post (ADR 0006, 0008).
+	const META_IDE           = '_lms4wp_ide'; // On the module post (ADR 0010).
 	const META_COURSE_ID     = '_lms4wp_course_id';
 	const META_ORDER         = '_lms4wp_order';
 
@@ -34,6 +35,7 @@ final class CourseImporter
 	const COURSE_FILE = 'course-structure.md';
 	const MODULE_FILE = 'requirements.md';
 	const TERMINAL_FILE = 'terminal.json';
+	const IDE_FILE      = 'ide.json';
 	const STATUSES    = ['draft', 'pending', 'private', 'publish'];
 
 	/** @var callable(string): void */
@@ -147,6 +149,7 @@ final class CourseImporter
 					[
 						Module::META_KEY    => $module['key'],
 						self::META_TERMINAL => $module['terminal'] ?? '',
+						self::META_IDE      => $module['ide'] ?? '',
 					]
 				);
 				if (is_wp_error($module_id)) {
@@ -277,6 +280,10 @@ final class CourseImporter
 				$site_terminal = get_post_meta($post_id, self::META_TERMINAL, true);
 				if (($site_terminal === '' ? null : $site_terminal) !== ($item['terminal'] ?? null)) {
 					$issues[] = sprintf('terminal  %s (#%d): terminal.json differs', $item['source'], $post_id);
+				}
+				$site_ide = get_post_meta($post_id, self::META_IDE, true);
+				if (($site_ide === '' ? null : $site_ide) !== ($item['ide'] ?? null)) {
+					$issues[] = sprintf('ide       %s (#%d): ide.json differs', $item['source'], $post_id);
 				}
 			}
 			unset($site[$item['source']]);
@@ -488,6 +495,20 @@ final class CourseImporter
 				$terminals[$key] = $terminal;
 			}
 
+			// Chapter IDE practice (ADR 0010).
+			$ide = null;
+			$raw_ide = '';
+			if ($with_terminals && in_array(self::IDE_FILE, $module_files, true)) {
+				$raw_ide = $reader->read($key . '/' . self::IDE_FILE);
+				if (is_wp_error($raw_ide)) {
+					return $raw_ide;
+				}
+				$ide = json_decode($raw_ide, true);
+				if (!is_array($ide) || empty($ide['lessons']) || !is_array($ide['lessons'])) {
+					return new \WP_Error('lms4wp_import_ide', sprintf('%s/%s: invalid JSON or no "lessons".', $key, self::IDE_FILE));
+				}
+			}
+
 			$modules[] = [
 				'source'   => $slug . '/' . $key . '/' . self::MODULE_FILE,
 				'key'      => $key,
@@ -496,8 +517,9 @@ final class CourseImporter
 				'label'    => $label !== '' ? $label : $module_title,
 				'goal'     => $goal,
 				'terminal' => $terminal,
-				// Module post content = requirements.md; hash covers terminal.json too.
-				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json))],
+				'ide'      => $ide,
+				// Module post content = requirements.md; hash covers terminal.json and ide.json too.
+				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json) . ($raw_ide !== '' ? '|' . sha1($raw_ide) : ''))],
 			];
 
 			if (!$with_lessons) {

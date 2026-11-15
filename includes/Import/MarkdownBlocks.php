@@ -24,6 +24,7 @@ final class MarkdownBlocks
 	 * - faq_attrs:    attributes of the forwp/faq wrapper (category).
 	 *
 	 * Fence ```terminal: empty → lms4wp/lesson-terminal (chapter terminal.json); with "profile: …" → forwp-advanced-code/terminal.
+	 * Fence ```ide: → lms4wp/lesson-ide (chapter ide.json, ADR 0010).
 	 *
 	 * @param string $markdown Markdown without front-matter.
 	 * @param bool   $skip_h1  Drop the first H1 (duplicates post title).
@@ -90,6 +91,8 @@ final class MarkdownBlocks
 				$lang = strtolower($m[1]);
 				if ($lang === 'terminal') {
 					$push(self::terminal($code));
+				} elseif ($lang === 'ide') {
+					$push('<!-- wp:lms4wp/lesson-ide /-->');
 				} elseif ($lang === 'mermaid') {
 					$push(self::diagram(implode("\n", $code)));
 				} else {

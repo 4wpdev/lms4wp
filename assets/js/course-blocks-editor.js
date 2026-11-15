@@ -17,6 +17,7 @@
 		'lms4wp/lesson-context',
 		'lms4wp/lesson-nav',
 		'lms4wp/lesson-terminal',
+		'lms4wp/lesson-ide',
 		'lms4wp/lesson-complete',
 	];
 

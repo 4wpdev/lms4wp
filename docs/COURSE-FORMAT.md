@@ -136,6 +136,60 @@ status: draft
 - Сайдбар: «This lesson» — команди уроку, «Chapter» — решта; працюють усі команди чаптера.
 - ```` ```terminal ```` з `profile: <slug>` — звичайний профіль 4wp-advanced-code (без чаптера).
 
+### Практичне завдання з кодом → IDE чаптера (ADR 0010)
+
+В уроці — лише тег:
+
+````markdown
+```ide
+```
+````
+
+→ блок `lms4wp/lesson-ide` → `forwp-advanced-code/ide` з `practice: lms4wp-lesson-<ID>`, задачі — з `ide.json` модуля:
+
+```json
+{
+  "title": "WooCommerce — Модуль 1",
+  "lessons": {
+    "lesson-1-2-crud-data-stores": {
+      "tasks": [
+        {
+          "file": "order-note.php",
+          "title": "Мета замовлення через CRUD",
+          "starter": "<?php\nadd_action( 'woocommerce_order_status_completed', function ( $order_id ) {\n\t// ...\n} );\n",
+          "steps": [
+            { "kind": "read", "title": "Задача", "body": "Прочитайте _delivery_slot замовлення так, щоб код працював з HPOS." },
+            {
+              "kind": "practice",
+              "title": "Напишіть код",
+              "body": "Отримайте замовлення і прочитайте мета.",
+              "check": {
+                "hook": "woocommerce_order_status_completed",
+                "must": [
+                  { "text": "wc_get_order(", "hint": "Отримайте об'єкт: wc_get_order( $order_id )." },
+                  { "regex": "->get_meta\\(\\s*['\"]_delivery_slot", "hint": "Читайте через $order->get_meta( '_delivery_slot' )." }
+                ],
+                "must_not": [
+                  { "regex": "\\bget_post_meta\\s*\\(", "hint": "get_post_meta() не бачить HPOS-таблиці." }
+                ],
+                "success": "Так. Код працює і з wp_posts, і з HPOS."
+              }
+            },
+            { "kind": "done", "title": "Готово" }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+- Ключ у `lessons` — ім'я файлу уроку без `.md`; кілька `tasks` — по черзі (Next task).
+- `kind`: `read`, `example` (`code` + «Load example»), `practice` (`check`), `quiz` (`options`, `feedback`), `done`.
+- `check`: `function`, `hook`, `returns`, `must` / `must_not` (рядок або `{ text | regex, hint, output, raw }`; `raw: true` — шукати і в коментарях, напр. заголовки плагіна), `success`. Коментарі в коді учня не враховуються. PHP не виконується.
+- Вимоги ADR 0009 діють і тут: імена файлів і функцій — ті самі, що в тексті «Практики».
+- `run` задачі — симуляція кнопки Run (PHP не виконується): `output` — вивід при успіху; `functions` — відомі функції задачі (виклик зі схожою назвою → `PHP Fatal error: Call to undefined function`). Непройдені правила `check` → рядки `✗` (`output` правила або `hint`).
+
 ### Код-блоки
 
 Мова — з fence (```` ```bash ````; `sh`/`shell`/`zsh` → `bash`, `js` → `javascript`, …). Без мови або невідома — `plaintext`. Автовизначення 4wp-advanced-code не використовується.

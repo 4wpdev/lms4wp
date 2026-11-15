@@ -488,6 +488,27 @@ $sticky-top-admin: calc(var(--forwp-header-h, 80px) + 1.5rem + 32px);
 		align-items: flex-start;
 	}
 
+	// IDE practice: on desktop it spans main + aside (over the course outline),
+	// like the hooks page — three IDE columns do not fit into 70%.
+	@media (min-width: 1100px) {
+		&__layout {
+			container-type: inline-size;
+		}
+
+		.lms4wp-lesson-ide:not(.is-compact) {
+			position: relative;
+			z-index: 5;
+			width: 100cqw;
+		}
+	}
+
+	// The toggle only makes sense where the IDE can grow.
+	@media (max-width: 1099px) {
+		.lms4wp-lesson-ide .forwp-ac-ide__wide-toggle {
+			display: none;
+		}
+	}
+
 	h1.lms4wp-lesson__title {
 		margin: 1rem 0 0;
 		font-size: clamp(1.625rem, 1.2rem + 1.2vw, 2.25rem);

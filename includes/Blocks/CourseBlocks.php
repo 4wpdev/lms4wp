@@ -9,6 +9,7 @@
  * - lms4wp/lesson-context  — course › module, "lesson N of M"
  * - lms4wp/lesson-nav      — previous / next lesson
  * - lms4wp/lesson-terminal — chapter terminal for this lesson (4wp-advanced-code, ADR 0006)
+ * - lms4wp/lesson-ide — IDE practice for this lesson from the chapter ide.json (4wp-advanced-code, ADR 0010)
  * - lms4wp/lesson-complete — "mark as complete" / completed state (F6)
  *
  * @package ForWP\LMS\Blocks
@@ -20,6 +21,7 @@ use ForWP\LMS\Content\CourseStructure;
 use ForWP\LMS\Content\LessonAccess;
 use ForWP\LMS\Content\Progress;
 use ForWP\LMS\Frontend\Icons;
+use ForWP\LMS\Integrations\AdvancedCodeIde;
 use ForWP\LMS\Integrations\AdvancedCodeTerminal;
 use ForWP\LMS\PostTypes\Course;
 use ForWP\LMS\PostTypes\Lesson;
@@ -79,6 +81,7 @@ final class CourseBlocks
 				['welcome' => ['type' => 'string', 'default' => '']],
 				'renderLessonTerminal',
 			],
+			'lesson-ide' => [__('Lesson IDE Practice', 'lms4wp'), [], 'renderLessonIde'],
 		];
 
 		foreach ($blocks as $name => [$title, $attributes, $callback]) {
@@ -523,6 +526,13 @@ final class CourseBlocks
 	{
 		$html = AdvancedCodeTerminal::render(self::postId($block), (string) ($attributes['welcome'] ?? ''));
 		return $html !== '' ? self::wrapper('lms4wp-lesson-terminal', $html) : '';
+	}
+
+	public static function renderLessonIde(array $attributes, string $content, \WP_Block $block): string
+	{
+		$html = AdvancedCodeIde::render(self::postId($block));
+		// forwp-ac-wide-host: 4wp-advanced-code adds the wide / compact toggle.
+		return $html !== '' ? self::wrapper('lms4wp-lesson-ide forwp-ac-wide-host', $html) : '';
 	}
 
 	public static function renderLessonNav(array $attributes, string $content, \WP_Block $block): string
