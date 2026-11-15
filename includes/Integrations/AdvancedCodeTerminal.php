@@ -120,7 +120,8 @@ final class AdvancedCodeTerminal
 
 		$by_slug = [];
 		foreach ($commands as $command) {
-			if (!empty($command['slug'])) {
+			// "hidden": answers for uncovered commands — not listed in the sidebar.
+			if (!empty($command['slug']) && empty($command['hidden'])) {
 				$by_slug[(string) $command['slug']] ??= $command;
 			}
 		}
@@ -160,6 +161,14 @@ final class AdvancedCodeTerminal
 			'categories' => $categories,
 			'commands'   => $commands,
 		];
+
+		// Answer for input no command matches (4wp-advanced-code findCommand).
+		if (!empty($terminal['fallback']) && is_array($terminal['fallback'])) {
+			$data['fallback'] = [
+				'output' => (string) ($terminal['fallback']['output'] ?? ''),
+				'tip'    => (string) ($terminal['fallback']['tip'] ?? ''),
+			];
+		}
 
 		// Scenario (4wp-advanced-code terminal-state): initial state + temporary memory per chapter.
 		if (isset($terminal['state']) && is_array($terminal['state'])) {
