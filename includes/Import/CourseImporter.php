@@ -28,6 +28,8 @@ final class CourseImporter
 	const META_IDE           = '_lms4wp_ide'; // On the module post (ADR 0010).
 	const META_COURSE_ID     = '_lms4wp_course_id';
 	const META_ORDER         = '_lms4wp_order';
+	const META_IMAGE_SOURCE  = '_lms4wp_image_source'; // On the attachment: package path of the image.
+	const META_IMAGE_HASH    = '_lms4wp_image_hash';   // On the attachment: sha1 of the image file.
 
 	const TAXONOMY_LEVEL = 'lms_level';
 	const TAXONOMY_TAG   = 'lms_tag';
@@ -132,6 +134,7 @@ final class CourseImporter
 
 			if (!$this->dry_run && $course_id > 0) {
 				update_post_meta($course_id, self::META_SOURCE_COMMIT, $this->commit);
+				$this->applyImage($reader, $course_id, '', $course['doc']['meta'], $course['title']);
 			}
 
 			// Modules: lms_module posts under the course (ADR 0008); terminal.json on the module.
@@ -152,10 +155,13 @@ final class CourseImporter
 						Module::META_KEY    => $module['key'],
 						self::META_TERMINAL => $module['terminal'] ?? '',
 						self::META_IDE      => $module['ide'] ?? '',
-					] + PromoVideo::metaFrom($module['page']['meta'])
+					] + PromoVideo::metaFrom($module['page']['meta']) + $this->seoMetaFor($module['page']['meta'])
 				);
 				if (is_wp_error($module_id)) {
 					return $module_id;
+				}
+				if (!$this->dry_run && $module_id > 0) {
+					$this->applyImage($reader, $module_id, $module['key'] . '/', $module['page']['meta'], $module['title']);
 				}
 				// Keep the module under the current course even when its file did not change.
 				if (!$this->dry_run && $module_id > 0 && (int) wp_get_post_parent_id($module_id) !== $course_id) {
@@ -543,8 +549,9 @@ final class CourseImporter
 				'terminal' => $terminal,
 				'ide'      => $ide,
 				'page'     => ['meta' => $page_doc['meta'], 'body' => $page_doc['body']],
-				// Hash covers requirements.md, module.md, terminal.json and ide.json.
-				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json) . ($raw_ide !== '' ? '|' . sha1($raw_ide) : '') . ($has_page ? '|' . $page_doc['hash'] : ''))],
+				// Hash covers requirements.md, module.md, terminal.json and ide.json; "page-v2" re-imports module pages
+				// once for SEO meta from module.md (1.15.0).
+				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json) . ($raw_ide !== '' ? '|' . sha1($raw_ide) : '') . ($has_page ? '|' . $page_doc['hash'] . '|page-v2' : ''))],
 			];
 
 			if (!$with_lessons) {
@@ -588,6 +595,110 @@ final class CourseImporter
 	/**
 	 * @return array{meta: array<string, string>, body: string, hash: string}|\WP_Error
 	 */
+	/**
+	 * Front-matter "image" → featured image. The value is a file in the package, relative to the
+	 * document's folder ("4wpdev-git-module-5-workflows.jpg"), or an attachment ID.
+	 * The file is uploaded once: the attachment keeps its package path and content hash, so a
+	 * re-import reuses it and only uploads again when the image itself changed.
+	 *
+	 * @param array<string, mixed> $meta Front-matter.
+	 */
+	private function applyImage(PackageReader $reader, int $post_id, string $dir, array $meta, string $title): void
+	{
+		$image = trim((string) ($meta['image'] ?? ''));
+		if ($image === '') {
+			return;
+		}
+
+		if (ctype_digit($image)) {
+			if (wp_attachment_is_image((int) $image)) {
+				set_post_thumbnail($post_id, (int) $image);
+			}
+			return;
+		}
+
+		$relative = $dir . ltrim($image, '/');
+		$source = $reader->slug() . '/' . $relative;
+
+		// Same file already attached and no forced update: nothing to download.
+		$current = (int) get_post_thumbnail_id($post_id);
+		if ($current > 0 && !$this->force && get_post_meta($current, self::META_IMAGE_SOURCE, true) === $source) {
+			return;
+		}
+
+		$bytes = $reader->read($relative);
+		if (is_wp_error($bytes) || $bytes === '') {
+			($this->log)(sprintf('image   %s: %s', $source, is_wp_error($bytes) ? $bytes->get_error_message() : 'empty file'));
+			return;
+		}
+		$hash = sha1($bytes);
+
+		$attachment_id = $this->findImage($source, $hash);
+		if ($attachment_id === 0) {
+			$attachment_id = $this->uploadImage(basename($relative), $bytes, $post_id, $title);
+			if ($attachment_id === 0) {
+				($this->log)(sprintf('image   %s: upload failed', $source));
+				return;
+			}
+			update_post_meta($attachment_id, self::META_IMAGE_SOURCE, $source);
+			update_post_meta($attachment_id, self::META_IMAGE_HASH, $hash);
+			($this->log)(sprintf('image   %s (#%d)', $source, $attachment_id));
+		}
+
+		if ($current !== $attachment_id) {
+			set_post_thumbnail($post_id, $attachment_id);
+		}
+	}
+
+	/**
+	 * Attachment uploaded earlier from the same package file with the same content (0 — none).
+	 */
+	private function findImage(string $source, string $hash): int
+	{
+		$ids = get_posts([
+			'post_type'        => 'attachment',
+			'post_status'      => 'inherit',
+			'posts_per_page'   => 1,
+			'fields'           => 'ids',
+			'no_found_rows'    => true,
+			'suppress_filters' => true,
+			'meta_query'       => [
+				['key' => self::META_IMAGE_SOURCE, 'value' => $source],
+				['key' => self::META_IMAGE_HASH, 'value' => $hash],
+			],
+		]);
+		return (int) ($ids[0] ?? 0);
+	}
+
+	/**
+	 * Upload image bytes into the media library (0 — failed / not an image).
+	 */
+	private function uploadImage(string $name, string $bytes, int $parent_id, string $title): int
+	{
+		$type = wp_check_filetype($name);
+		if (!is_string($type['type']) || !str_starts_with($type['type'], 'image/')) {
+			return 0;
+		}
+		$upload = wp_upload_bits($name, null, $bytes);
+		if (!empty($upload['error'])) {
+			return 0;
+		}
+
+		$attachment_id = wp_insert_attachment([
+			'post_mime_type' => $type['type'],
+			'post_title'     => $title,
+			'post_status'    => 'inherit',
+		], $upload['file'], $parent_id, true);
+		if (is_wp_error($attachment_id)) {
+			return 0;
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		wp_update_attachment_metadata($attachment_id, wp_generate_attachment_metadata($attachment_id, $upload['file']));
+		update_post_meta($attachment_id, '_wp_attachment_image_alt', $title);
+		return (int) $attachment_id;
+	}
+
 	private function readDoc(PackageReader $reader, string $relative)
 	{
 		$raw = $reader->read($relative);

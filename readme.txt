@@ -4,7 +4,7 @@ Tags: lms, learning, courses, education, woocommerce, mcp, ai
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 1.12.0
+Stable tag: 1.15.0
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
