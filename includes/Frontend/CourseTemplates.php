@@ -10,6 +10,7 @@ namespace ForWP\LMS\Frontend;
 
 use ForWP\LMS\PostTypes\Course;
 use ForWP\LMS\PostTypes\Lesson;
+use ForWP\LMS\PostTypes\Module;
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
@@ -39,6 +40,11 @@ final class CourseTemplates
 				__('Single Lesson', 'lms4wp'),
 				__('Lesson page: course context, content, previous / next, course outline.', 'lms4wp'),
 				Lesson::POST_TYPE,
+			],
+			'single-' . Module::POST_TYPE => [
+				__('Single Module', 'lms4wp'),
+				__('Module page: key message and lessons; aside — short video, continue, other modules.', 'lms4wp'),
+				Module::POST_TYPE,
 			],
 		];
 

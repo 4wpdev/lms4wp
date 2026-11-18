@@ -21,6 +21,7 @@ use ForWP\LMS\Database\Schema;
 use ForWP\LMS\Content\PracticeCaseTemplateSync;
 use ForWP\LMS\Content\PracticeCaseEditorShell;
 use ForWP\LMS\PostTypes\Book;
+use ForWP\LMS\PostTypes\Module;
 use ForWP\LMS\Users\Roles;
 
 /**
@@ -65,11 +66,13 @@ class Activator
 		$stored = get_option('lms4wp_version', '');
 		$rewrite_version = get_option('lms4wp_rewrite_version', '');
 		$book_rewrite_version = get_option('lms4wp_book_rewrite_version', '');
+		$module_rewrite_version = get_option('lms4wp_module_rewrite_version', '');
 
 		if (
 			$stored === LMS4WP_VERSION
 			&& $rewrite_version === \ForWP\LMS\PostTypes\PracticeCase::REWRITE_VERSION
 			&& $book_rewrite_version === Book::REWRITE_VERSION
+			&& $module_rewrite_version === Module::REWRITE_VERSION
 		) {
 			PracticeCaseTemplateSync::maybeSync();
 			PracticeCaseEditorShell::maybeBackfill();
@@ -84,6 +87,7 @@ class Activator
 		update_option('lms4wp_version', LMS4WP_VERSION, false);
 		update_option('lms4wp_rewrite_version', \ForWP\LMS\PostTypes\PracticeCase::REWRITE_VERSION, false);
 		update_option('lms4wp_book_rewrite_version', Book::REWRITE_VERSION, false);
+		update_option('lms4wp_module_rewrite_version', Module::REWRITE_VERSION, false);
 		PracticeCaseTemplateSync::maybeSync();
 		PracticeCaseEditorShell::maybeBackfill();
 

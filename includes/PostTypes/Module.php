@@ -2,7 +2,8 @@
 /**
  * Module (course section) — CPT with a shadow taxonomy (ADR 0008).
  *
- * - lms_module: post_parent = course, menu_order = position, title, content (description), excerpt (goal).
+ * - lms_module: post_parent = course, menu_order = position, title, content (module page, module.md),
+ *   excerpt (goal), featured image (SEO / preview, video poster). Public page: /modules/{course}-{module}/.
  * - lms_module_tax: one term per module post (kept in sync automatically), assigned to lessons.
  *   Terms are not created by hand; the lesson editor only picks a module.
  *
@@ -23,6 +24,7 @@ class Module
 	const META_KEY    = '_lms4wp_module_key';   // Hub folder key (module-1-basics).
 	const TERM_META   = 'lms4wp_module_id';     // Term → module post.
 	const POST_META_TERM = '_lms4wp_module_term'; // Module post → term.
+	const REWRITE_VERSION = '1'; // Public module pages at /modules/{course}-{module}/.
 
 	public static function init(): void
 	{
@@ -49,16 +51,19 @@ class Module
 				'search_items'  => __('Search Modules', 'lms4wp'),
 				'not_found'     => __('No modules found.', 'lms4wp'),
 			],
-			'public'             => false,
-			'publicly_queryable' => false,
+			'public'             => true,
+			'publicly_queryable' => true,
+			'exclude_from_search' => true,
 			'show_ui'            => true,
 			'show_in_menu'       => 'edit.php?post_type=' . Course::POST_TYPE,
+			'show_in_nav_menus'  => false,
 			'show_in_rest'       => true,
-			'rewrite'            => false,
+			'has_archive'        => false,
+			'rewrite'            => ['slug' => 'modules', 'with_front' => false],
 			'capability_type'    => 'lms_course',
 			'map_meta_cap'       => true,
 			'hierarchical'       => false,
-			'supports'           => ['title', 'editor', 'excerpt', 'page-attributes'],
+			'supports'           => ['title', 'editor', 'excerpt', 'thumbnail', 'page-attributes'],
 		]);
 
 		register_taxonomy(self::TAXONOMY, [Lesson::POST_TYPE], [

@@ -12,6 +12,7 @@ use ForWP\LMS\PostTypes\Course;
 use ForWP\LMS\PostTypes\Lesson;
 use ForWP\LMS\PostTypes\Module;
 use ForWP\LMS\Content\CourseStructure;
+use ForWP\LMS\Content\PromoVideo;
 
 // Prevent direct access
 if (!defined('ABSPATH')) {
@@ -34,6 +35,7 @@ final class CourseImporter
 
 	const COURSE_FILE = 'course-structure.md';
 	const MODULE_FILE = 'requirements.md';
+	const MODULE_PAGE_FILE = 'module.md'; // Public module page (landing); requirements.md stays internal.
 	const TERMINAL_FILE = 'terminal.json';
 	const IDE_FILE      = 'ide.json';
 	const STATUSES    = ['draft', 'pending', 'private', 'publish'];
@@ -121,7 +123,7 @@ final class CourseImporter
 				// Guest access (ADR 0003): front-matter "guest_lessons" → course setting.
 				(isset($course['doc']['meta']['guest_lessons'])
 					? ['_lms4wp_guest_lessons' => absint($course['doc']['meta']['guest_lessons'])]
-					: []) + $this->seoMetaFor($course['doc']['meta']),
+					: []) + $this->seoMetaFor($course['doc']['meta']) + PromoVideo::metaFrom($course['doc']['meta']),
 				$this->termsFor($course['doc']['meta'])
 			);
 			if (is_wp_error($course_id)) {
@@ -140,7 +142,7 @@ final class CourseImporter
 					[
 						'post_title'   => $module['title'],
 						'post_name'    => $package['slug'] . '-' . $module['key'],
-						'post_content' => MarkdownBlocks::convert($module['doc']['body']),
+						'post_content' => MarkdownBlocks::convert($module['page']['body']),
 						'post_excerpt' => $module['goal'],
 						'post_status'  => 'publish',
 						'post_parent'  => $course_id,
@@ -150,7 +152,7 @@ final class CourseImporter
 						Module::META_KEY    => $module['key'],
 						self::META_TERMINAL => $module['terminal'] ?? '',
 						self::META_IDE      => $module['ide'] ?? '',
-					]
+					] + PromoVideo::metaFrom($module['page']['meta'])
 				);
 				if (is_wp_error($module_id)) {
 					return $module_id;
@@ -180,7 +182,7 @@ final class CourseImporter
 		$faq_attrs = [];
 		$module_posts = [];
 		foreach ($modules as $key => $module) {
-			$module_posts[$key] = $this->findSourcePost(Module::POST_TYPE, $module['source']);
+			$module_posts[$key] = $this->findModulePost($module);
 		}
 
 		foreach ($package['lessons'] as $lesson) {
@@ -480,6 +482,26 @@ final class CourseImporter
 				}
 			}
 
+			// Module page (module.md): title, goal (excerpt), video and content of the public module page.
+			// Without it the page falls back to requirements.md (legacy packages).
+			$page_doc = $module_doc;
+			$has_page = in_array(self::MODULE_PAGE_FILE, $module_files, true);
+			if ($has_page) {
+				$page_doc = $this->readDoc($reader, $key . '/' . self::MODULE_PAGE_FILE);
+				if (is_wp_error($page_doc)) {
+					return $page_doc;
+				}
+				$page_title = trim((string) ($page_doc['meta']['title'] ?? ''));
+				if ($page_title !== '') {
+					$module_title = $page_title;
+					$label = $page_title;
+				}
+				$excerpt = trim((string) ($page_doc['meta']['excerpt'] ?? ''));
+				if ($excerpt !== '') {
+					$goal = $excerpt;
+				}
+			}
+
 			// Chapter terminal (ADR 0006).
 			$terminal = null;
 			$raw_json = '';
@@ -510,7 +532,9 @@ final class CourseImporter
 			}
 
 			$modules[] = [
-				'source'   => $slug . '/' . $key . '/' . self::MODULE_FILE,
+				// Module identity = its page file; requirements.md for legacy packages (looked up as legacy_source).
+				'source'   => $slug . '/' . $key . '/' . ($has_page ? self::MODULE_PAGE_FILE : self::MODULE_FILE),
+				'legacy_source' => $slug . '/' . $key . '/' . self::MODULE_FILE,
 				'key'      => $key,
 				'number'   => $number,
 				'title'    => $module_title,
@@ -518,8 +542,9 @@ final class CourseImporter
 				'goal'     => $goal,
 				'terminal' => $terminal,
 				'ide'      => $ide,
-				// Module post content = requirements.md; hash covers terminal.json and ide.json too.
-				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json) . ($raw_ide !== '' ? '|' . sha1($raw_ide) : ''))],
+				'page'     => ['meta' => $page_doc['meta'], 'body' => $page_doc['body']],
+				// Hash covers requirements.md, module.md, terminal.json and ide.json.
+				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json) . ($raw_ide !== '' ? '|' . sha1($raw_ide) : '') . ($has_page ? '|' . $page_doc['hash'] : ''))],
 			];
 
 			if (!$with_lessons) {
@@ -575,6 +600,20 @@ final class CourseImporter
 	/**
 	 * Post imported from a source path (0 — none).
 	 */
+	/**
+	 * Module post of a package module (by its page file, then by requirements.md).
+	 *
+	 * @param array{source: string, legacy_source?: string} $module
+	 */
+	private function findModulePost(array $module): int
+	{
+		$id = $this->findSourcePost(Module::POST_TYPE, $module['source']);
+		if ($id === 0 && !empty($module['legacy_source'])) {
+			$id = $this->findSourcePost(Module::POST_TYPE, (string) $module['legacy_source']);
+		}
+		return $id;
+	}
+
 	private function findSourcePost(string $post_type, string $source): int
 	{
 		$ids = get_posts([
@@ -709,6 +748,10 @@ final class CourseImporter
 				'suppress_filters' => true,
 			]);
 			$post_id = (int) ($existing[0] ?? 0);
+			// Module that got a module.md: keep the post imported from requirements.md.
+			if ($post_id === 0 && !empty($item['legacy_source']) && $item['legacy_source'] !== $source) {
+				$post_id = $this->findSourcePost($post_type, (string) $item['legacy_source']);
+			}
 		}
 
 		// Re-import keeps the site status (publish stays publish); front-matter status applies on create,

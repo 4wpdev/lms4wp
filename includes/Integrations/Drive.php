@@ -133,7 +133,7 @@ final class Drive
 	}
 
 	/**
-	 * Import finished: course and lesson IDs, verify and commit → meta.json "lms".
+	 * Import finished: course, module and lesson IDs, verify and commit → meta.json "lms".
 	 *
 	 * @param array<string, mixed> $state
 	 * @param array<string, mixed> $options
@@ -145,9 +145,33 @@ final class Drive
 		}
 		$course_id = CourseImporter::findCourseId((string) $slug);
 
-		$lessons = [];
+		// Module and lesson IDs by their source file (modules: module.md or requirements.md).
+		$modules = self::idsBySource('lms_module', (string) $slug);
+		$lessons = self::idsBySource('lms_lesson', (string) $slug);
+
+		$issues = (array) ($state['issues'] ?? []);
+		apply_filters('forwp_drive_update_package', null, $reader->postId(), ['lms' => [
+			'state'       => (string) ($state['state'] ?? 'done'),
+			'course_id'   => $course_id,
+			'modules'     => $modules,
+			'lessons'     => $lessons,
+			'commit'      => (string) ($options['commit'] ?? ''),
+			'verify'      => $issues ? count($issues) . ' differences' : 'ok',
+			'errors'      => array_values((array) ($state['errors'] ?? [])),
+			'finished_at' => gmdate('c'),
+		]]);
+	}
+
+	/**
+	 * Imported posts of a package: "module-1-x/file.md" => post ID.
+	 *
+	 * @return array<string, int>
+	 */
+	private static function idsBySource(string $post_type, string $slug): array
+	{
+		$out = [];
 		$sources = get_posts([
-			'post_type'        => 'lms_lesson',
+			'post_type'        => $post_type,
 			'post_status'      => 'any',
 			'posts_per_page'   => -1,
 			'fields'           => 'ids',
@@ -159,22 +183,12 @@ final class Drive
 				'compare' => 'REGEXP',
 			]],
 		]);
-		foreach ($sources as $lesson_id) {
-			$source = (string) get_post_meta((int) $lesson_id, CourseImporter::META_SOURCE, true);
-			$lessons[substr($source, strlen($slug) + 1)] = (int) $lesson_id;
+		foreach ($sources as $post_id) {
+			$source = (string) get_post_meta((int) $post_id, CourseImporter::META_SOURCE, true);
+			$out[substr($source, strlen($slug) + 1)] = (int) $post_id;
 		}
-		ksort($lessons);
-
-		$issues = (array) ($state['issues'] ?? []);
-		apply_filters('forwp_drive_update_package', null, $reader->postId(), ['lms' => [
-			'state'       => (string) ($state['state'] ?? 'done'),
-			'course_id'   => $course_id,
-			'lessons'     => $lessons,
-			'commit'      => (string) ($options['commit'] ?? ''),
-			'verify'      => $issues ? count($issues) . ' differences' : 'ok',
-			'errors'      => array_values((array) ($state['errors'] ?? [])),
-			'finished_at' => gmdate('c'),
-		]]);
+		ksort($out);
+		return $out;
 	}
 
 	/**

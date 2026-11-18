@@ -19,6 +19,9 @@
 		'lms4wp/lesson-terminal',
 		'lms4wp/lesson-ide',
 		'lms4wp/lesson-complete',
+		'lms4wp/module-context',
+		'lms4wp/module-lessons',
+		'lms4wp/module-media',
 	];
 
 	names.forEach( function ( name ) {

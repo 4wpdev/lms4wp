@@ -3,7 +3,7 @@
  * Dynamic course / lesson blocks used by the course and lesson templates.
  *
  * - lms4wp/course-meta     — modules, lessons, level, free lessons (icons)
- * - lms4wp/course-media    — cover (featured image or placeholder) + "This course includes"
+ * - lms4wp/course-media    — promo video / cover (featured image or placeholder) + "This course includes"
  * - lms4wp/course-join     — start / join / continue button
  * - lms4wp/course-outline  — modules → lessons (course page, lesson sidebar)
  * - lms4wp/lesson-context  — course › module, "lesson N of M"
@@ -11,6 +11,9 @@
  * - lms4wp/lesson-terminal — chapter terminal for this lesson (4wp-advanced-code, ADR 0006)
  * - lms4wp/lesson-ide — IDE practice for this lesson from the chapter ide.json (4wp-advanced-code, ADR 0010)
  * - lms4wp/lesson-complete — "mark as complete" / completed state (F6)
+ * - lms4wp/module-context  — module page: course › "Module N of M"
+ * - lms4wp/module-lessons  — module page: lessons of the module with progress
+ * - lms4wp/module-media    — module page aside: short video, YouTube, continue button, other modules
  *
  * @package ForWP\LMS\Blocks
  */
@@ -20,11 +23,13 @@ namespace ForWP\LMS\Blocks;
 use ForWP\LMS\Content\CourseStructure;
 use ForWP\LMS\Content\LessonAccess;
 use ForWP\LMS\Content\Progress;
+use ForWP\LMS\Content\PromoVideo;
 use ForWP\LMS\Frontend\Icons;
 use ForWP\LMS\Integrations\AdvancedCodeIde;
 use ForWP\LMS\Integrations\AdvancedCodeTerminal;
 use ForWP\LMS\PostTypes\Course;
 use ForWP\LMS\PostTypes\Lesson;
+use ForWP\LMS\PostTypes\Module;
 use ForWP\LMS\Users\EnrollmentService;
 
 // Prevent direct access
@@ -82,6 +87,13 @@ final class CourseBlocks
 				'renderLessonTerminal',
 			],
 			'lesson-ide' => [__('Lesson IDE Practice', 'lms4wp'), [], 'renderLessonIde'],
+			'module-context' => [__('Module Context', 'lms4wp'), [], 'renderModuleContext'],
+			'module-lessons' => [
+				__('Module Lessons', 'lms4wp'),
+				['heading' => ['type' => 'string', 'default' => '']],
+				'renderModuleLessons',
+			],
+			'module-media'   => [__('Module Media', 'lms4wp'), [], 'renderModuleMedia'],
 		];
 
 		foreach ($blocks as $name => [$title, $attributes, $callback]) {
@@ -113,6 +125,10 @@ final class CourseBlocks
 		if ($type === Lesson::POST_TYPE) {
 			return CourseStructure::courseIdForLesson($post_id);
 		}
+		if ($type === Module::POST_TYPE) {
+			$parent = (int) wp_get_post_parent_id($post_id);
+			return $parent > 0 && get_post_type($parent) === Course::POST_TYPE ? $parent : 0;
+		}
 		return 0;
 	}
 
@@ -120,13 +136,17 @@ final class CourseBlocks
 	{
 		$post_id = (int) ($block->context['postId'] ?? 0);
 		$post_id = $post_id > 0 ? $post_id : (int) get_the_ID();
-		if ($post_id > 0 && in_array(get_post_type($post_id), [Course::POST_TYPE, Lesson::POST_TYPE], true)) {
+		if ($post_id > 0 && in_array(get_post_type($post_id), [Course::POST_TYPE, Lesson::POST_TYPE, Module::POST_TYPE], true)) {
 			return $post_id;
 		}
 
 		// Site Editor / template preview: no real course or lesson — show a real sample instead of an empty block.
 		if (self::isEditorPreview()) {
-			return ($block->context['postType'] ?? '') === Course::POST_TYPE ? self::sampleCourseId() : self::sampleLessonId();
+			$type = (string) ($block->context['postType'] ?? '');
+			if ($type === Course::POST_TYPE) {
+				return self::sampleCourseId();
+			}
+			return $type === Module::POST_TYPE ? self::sampleModuleId() : self::sampleLessonId();
 		}
 
 		return $post_id;
@@ -172,6 +192,48 @@ final class CourseBlocks
 		$lessons = CourseStructure::lessons(self::sampleCourseId());
 		$lesson = $lessons[1] ?? $lessons[0] ?? null;
 		return $lesson ? (int) $lesson->ID : 0;
+	}
+
+	/**
+	 * First module with lessons of the sample course (editor preview).
+	 */
+	private static function sampleModuleId(): int
+	{
+		foreach (CourseStructure::modules(self::sampleCourseId()) as $module) {
+			if ($module['id'] > 0 && $module['lessons']) {
+				return $module['id'];
+			}
+		}
+		return 0;
+	}
+
+	/**
+	 * Module page context: course, the module within the course structure, its neighbours.
+	 *
+	 * @return array{course_id: int, module: ?array, modules: array, index: int}
+	 */
+	private static function moduleContext(\WP_Block $block): array
+	{
+		$context = ['course_id' => 0, 'module' => null, 'modules' => [], 'index' => -1];
+		$module_id = self::postId($block);
+		if (get_post_type($module_id) !== Module::POST_TYPE) {
+			return $context;
+		}
+		$course_id = self::courseId($block);
+		if ($course_id === 0) {
+			return $context;
+		}
+		$modules = array_values(array_filter(CourseStructure::modules($course_id), static fn(array $m): bool => $m['id'] > 0));
+		foreach ($modules as $i => $module) {
+			if ($module['id'] === $module_id) {
+				$context['module'] = $module;
+				$context['index'] = $i;
+				break;
+			}
+		}
+		$context['course_id'] = $course_id;
+		$context['modules'] = $modules;
+		return $context;
 	}
 
 	private static function wrapper(string $class, string $html, string $tag = 'div'): string
@@ -231,9 +293,12 @@ final class CourseBlocks
 			return '';
 		}
 
-		$media = has_post_thumbnail($course_id)
-			? get_the_post_thumbnail($course_id, 'large', ['class' => 'lms4wp-course-media__image'])
-			: '<div class="lms4wp-course-media__placeholder">' . Icons::svg('graduation-cap', 56) . '<span>' . esc_html(get_the_title($course_id)) . '</span></div>';
+		// Promo video (poster = featured image) → featured image → placeholder.
+		$media = PromoVideo::renderMedia($course_id, 'lms4wp-course-media__image');
+		if ($media === '') {
+			$media = '<div class="lms4wp-course-media__placeholder">' . Icons::svg('graduation-cap', 56) . '<span>' . esc_html(get_the_title($course_id)) . '</span></div>';
+		}
+		$youtube = PromoVideo::renderYoutube($course_id);
 
 		// What the course includes.
 		$lessons = count(CourseStructure::lessons($course_id));
@@ -272,8 +337,10 @@ final class CourseBlocks
 
 		return self::wrapper(
 			'lms4wp-course-media',
-			'<div class="lms4wp-course-media__frame">' . $media . '</div>'
-			. '<div class="lms4wp-course-media__body"><p class="lms4wp-course-media__title">' . esc_html__('This course includes', 'lms4wp') . '</p>'
+			'<div class="lms4wp-course-media__frame' . (PromoVideo::hasVideo($course_id) ? ' has-video is-' . esc_attr(PromoVideo::get($course_id)['format']) : '') . '">' . $media . '</div>'
+			. '<div class="lms4wp-course-media__body">'
+			. $youtube
+			. '<p class="lms4wp-course-media__title">' . esc_html__('This course includes', 'lms4wp') . '</p>'
 			. '<ul class="lms4wp-course-media__includes">' . $list . '</ul>'
 			. '<div class="lms4wp-course-media__actions">' . $actions . '</div></div>',
 			'aside'
@@ -380,7 +447,11 @@ final class CourseBlocks
 			$html .= '<details' . ($open ? ' open' : '') . '><summary class="lms4wp-module__summary">';
 			if ($module['number'] > 0) {
 				/* translators: %d: module number */
-				$html .= '<span class="lms4wp-module__number">' . esc_html(sprintf(__('Module %d', 'lms4wp'), $module['number'])) . '</span>';
+				$label = esc_html(sprintf(__('Module %d', 'lms4wp'), $module['number']));
+				// Module page link (the rest of the summary still toggles the lessons).
+				$html .= $module['id'] > 0
+					? '<a class="lms4wp-module__number" href="' . esc_url((string) get_permalink($module['id'])) . '">' . $label . '</a>'
+					: '<span class="lms4wp-module__number">' . $label . '</span>';
 			}
 			$html .= '<span class="lms4wp-module__title">' . esc_html($module['title'] !== '' ? $module['title'] : __('Lessons', 'lms4wp')) . '</span>';
 			$done = count(array_intersect($ids, $completed_ids));
@@ -563,5 +634,165 @@ final class CourseBlocks
 			: $link('is-next', __('Course complete', 'lms4wp'), __('Back to course', 'lms4wp'), (string) get_permalink($context['course_id']));
 
 		return self::wrapper('lms4wp-lesson-nav', $html, 'nav');
+	}
+
+	public static function renderModuleContext(array $attributes, string $content, \WP_Block $block): string
+	{
+		$context = self::moduleContext($block);
+		if ($context['module'] === null) {
+			return '';
+		}
+		$html = sprintf(
+			'<a class="lms4wp-lesson-context__course" href="%s">%s</a>',
+			esc_url((string) get_permalink($context['course_id'])),
+			esc_html(get_the_title($context['course_id']))
+		)
+			. Icons::svg('chevron-right', 14, 'lms4wp-lesson-context__sep')
+			. '<span class="lms4wp-lesson-context__module">' . esc_html(sprintf(
+				/* translators: 1: module position, 2: total modules */
+				__('Module %1$d of %2$d', 'lms4wp'),
+				$context['index'] + 1,
+				count($context['modules'])
+			)) . '</span>';
+		return self::wrapper('lms4wp-lesson-context lms4wp-module-context', '<div class="lms4wp-lesson-context__crumbs">' . $html . '</div>', 'nav');
+	}
+
+	public static function renderModuleLessons(array $attributes, string $content, \WP_Block $block): string
+	{
+		$context = self::moduleContext($block);
+		if ($context['module'] === null || !$context['module']['lessons']) {
+			return '';
+		}
+		$lessons = $context['module']['lessons'];
+		$completed_ids = Progress::completedLessonIds(get_current_user_id(), $context['course_id']);
+		$heading = (string) ($attributes['heading'] ?? '');
+		if ($heading === '') {
+			$heading = __('Lessons in this module', 'lms4wp');
+		}
+
+		$html = '<h2 class="lms4wp-module-lessons__heading">' . esc_html($heading)
+			/* translators: %d: number of lessons */
+			. ' <span class="lms4wp-module-lessons__count">' . esc_html(sprintf(_n('%d lesson', '%d lessons', count($lessons), 'lms4wp'), count($lessons))) . '</span></h2>'
+			. '<ol class="lms4wp-module-lessons__list">';
+		foreach ($lessons as $i => $lesson) {
+			$locked = !LessonAccess::canView($lesson->ID);
+			$completed = in_array($lesson->ID, $completed_ids, true);
+			$excerpt = $locked ? '' : wp_trim_words(get_the_excerpt($lesson), 22);
+			$html .= sprintf(
+				'<li class="lms4wp-module-lessons__item%s%s"><a href="%s"><span class="lms4wp-module-lessons__number">%d</span><span class="lms4wp-module-lessons__text"><span class="lms4wp-module-lessons__title">%s</span>%s</span>%s</a></li>',
+				$locked ? ' is-locked' : '',
+				$completed ? ' is-completed' : '',
+				esc_url((string) get_permalink($lesson)),
+				$i + 1,
+				esc_html(get_the_title($lesson)),
+				$excerpt !== '' ? '<span class="lms4wp-module-lessons__excerpt">' . esc_html($excerpt) . '</span>' : '',
+				$locked
+					? Icons::svg('lock', 16, 'lms4wp-lesson-item__lock') . '<span class="screen-reader-text">' . esc_html__('(locked)', 'lms4wp') . '</span>'
+					: ($completed ? Icons::svg('circle-check', 18, 'lms4wp-lesson-item__done') . '<span class="screen-reader-text">' . esc_html__('(completed)', 'lms4wp') . '</span>' : Icons::svg('chevron-right', 18, 'lms4wp-module-lessons__arrow'))
+			);
+		}
+		$html .= '</ol>';
+		return self::wrapper('lms4wp-module-lessons', $html, 'section');
+	}
+
+	public static function renderModuleMedia(array $attributes, string $content, \WP_Block $block): string
+	{
+		$context = self::moduleContext($block);
+		$module = $context['module'];
+		if ($module === null) {
+			return '';
+		}
+		$module_id = $module['id'];
+
+		// Short video (poster = featured image) → featured image → placeholder.
+		$media = PromoVideo::renderMedia($module_id, 'lms4wp-course-media__image');
+		if ($media === '') {
+			$media = '<div class="lms4wp-course-media__placeholder">' . Icons::svg('layers', 56) . '<span>' . esc_html($module['title']) . '</span></div>';
+		}
+		$video = PromoVideo::get($module_id);
+		$frame_class = 'lms4wp-course-media__frame' . (PromoVideo::hasVideo($module_id) ? ' has-video is-' . $video['format'] : '');
+
+		$html = '<div class="' . esc_attr($frame_class) . '">' . $media . '</div>'
+			. '<div class="lms4wp-course-media__body">'
+			. PromoVideo::renderYoutube($module_id)
+			. self::moduleContinue($context)
+			. self::moduleList($context)
+			. '</div>';
+
+		return self::wrapper('lms4wp-course-media lms4wp-module-media', $html, 'aside');
+	}
+
+	/**
+	 * Continue button of a module: first not completed lesson; module done → next module.
+	 */
+	private static function moduleContinue(array $context): string
+	{
+		$lessons = $context['module']['lessons'];
+		if (!$lessons) {
+			return '';
+		}
+		$user_id = get_current_user_id();
+		$completed_ids = $user_id > 0 ? Progress::completedLessonIds($user_id, $context['course_id']) : [];
+		$ids = wp_list_pluck($lessons, 'ID');
+		$done = count(array_intersect($ids, $completed_ids));
+
+		$next = null;
+		foreach ($lessons as $lesson) {
+			if (!in_array($lesson->ID, $completed_ids, true)) {
+				$next = $lesson;
+				break;
+			}
+		}
+
+		$html = '';
+		if ($user_id > 0 && $done > 0) {
+			$html .= self::progressBar($done, count($lessons), (int) round($done * 100 / count($lessons)));
+		}
+
+		$next_module = $context['modules'][$context['index'] + 1] ?? null;
+		if ($next !== null) {
+			$label = $done > 0 ? __('Continue module', 'lms4wp') : __('Start module', 'lms4wp');
+			$url = (string) get_permalink($next);
+		} elseif ($next_module !== null) {
+			$label = __('Next module', 'lms4wp');
+			$url = (string) get_permalink($next_module['id']);
+		} else {
+			$label = __('Review module', 'lms4wp');
+			$url = (string) get_permalink($lessons[0]);
+		}
+
+		$html .= '<div class="wp-block-buttons">' . self::button($label, $url) . '</div>';
+		if ($next !== null) {
+			$html .= '<p class="lms4wp-course-join__note">' . esc_html(get_the_title($next)) . '</p>';
+		}
+		return '<div class="lms4wp-course-media__actions lms4wp-module-media__continue">' . $html . '</div>';
+	}
+
+	/**
+	 * Other modules of the course (current one highlighted).
+	 */
+	private static function moduleList(array $context): string
+	{
+		if (count($context['modules']) < 2) {
+			return '';
+		}
+		$completed_ids = Progress::completedLessonIds(get_current_user_id(), $context['course_id']);
+		$html = '<p class="lms4wp-course-media__title">' . esc_html__('Course modules', 'lms4wp') . '</p><ol class="lms4wp-module-media__modules">';
+		foreach ($context['modules'] as $i => $module) {
+			$current = $module['id'] === $context['module']['id'];
+			$ids = wp_list_pluck($module['lessons'], 'ID');
+			$is_done = $ids && !array_diff($ids, $completed_ids);
+			$html .= sprintf(
+				'<li class="lms4wp-module-media__module%s%s"><a href="%s"%s><span class="lms4wp-module-media__number">%d</span><span class="lms4wp-module-media__name">%s</span>%s</a></li>',
+				$current ? ' is-current' : '',
+				$is_done ? ' is-completed' : '',
+				esc_url((string) get_permalink($module['id'])),
+				$current ? ' aria-current="page"' : '',
+				$i + 1,
+				esc_html($module['title']),
+				$is_done ? Icons::svg('circle-check', 16, 'lms4wp-lesson-item__done') : ''
+			);
+		}
+		return $html . '</ol>';
 	}
 }

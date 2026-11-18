@@ -1,0 +1,42 @@
+<!-- wp:template-part {"slug":"header","tagName":"header"} /-->
+
+<!-- wp:group {"tagName":"main","className":"lms4wp-course lms4wp-module-page","layout":{"type":"constrained","contentSize":"1200px"}} -->
+<main class="wp-block-group lms4wp-course lms4wp-module-page">
+
+	<!-- wp:columns {"className":"lms4wp-course__layout"} -->
+	<div class="wp-block-columns lms4wp-course__layout">
+
+		<!-- wp:column {"width":"62%","className":"lms4wp-course__main"} -->
+		<div class="wp-block-column lms4wp-course__main" style="flex-basis:62%">
+
+			<!-- wp:group {"className":"lms4wp-module-hero","layout":{"type":"default"}} -->
+			<div class="wp-block-group lms4wp-module-hero">
+				<!-- wp:lms4wp/module-context /-->
+				<!-- wp:post-title {"level":1,"className":"lms4wp-module-hero__title"} /-->
+				<!-- wp:post-excerpt {"moreText":"","className":"lms4wp-module-hero__lead"} /-->
+			</div>
+			<!-- /wp:group -->
+
+			<!-- wp:group {"className":"lms4wp-course-body","layout":{"type":"default"}} -->
+			<div class="wp-block-group lms4wp-course-body">
+				<!-- wp:post-content /-->
+				<!-- wp:lms4wp/module-lessons /-->
+			</div>
+			<!-- /wp:group -->
+
+		</div>
+		<!-- /wp:column -->
+
+		<!-- wp:column {"width":"38%","className":"lms4wp-course__aside"} -->
+		<div class="wp-block-column lms4wp-course__aside" style="flex-basis:38%">
+			<!-- wp:lms4wp/module-media /-->
+		</div>
+		<!-- /wp:column -->
+
+	</div>
+	<!-- /wp:columns -->
+
+</main>
+<!-- /wp:group -->
+
+<!-- wp:template-part {"slug":"footer","tagName":"footer"} /-->
