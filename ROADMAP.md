@@ -1,5 +1,10 @@
 # LMS4WP Roadmap
 
+## 🔥 Hotfix / Bugfix (додано 2026-11-17)
+
+- [ ] **HOTFIX:** Можливість працювати з курсом через AI-агента (агент має зайти на курс і почати навчання). Привід: Google AI Mode не зміг зайти на курс "Git Basics".
+- [ ] `llms.txt` — якщо доречно.
+
 ## Version 1.0.0 - MVP (Minimum Viable Product)
 
 ### Phase 1: Foundation ✅

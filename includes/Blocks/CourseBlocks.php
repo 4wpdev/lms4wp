@@ -24,6 +24,7 @@ use ForWP\LMS\Content\CourseStructure;
 use ForWP\LMS\Content\LessonAccess;
 use ForWP\LMS\Content\Progress;
 use ForWP\LMS\Content\PromoVideo;
+use ForWP\LMS\Frontend\Breadcrumbs;
 use ForWP\LMS\Frontend\Icons;
 use ForWP\LMS\Integrations\AdvancedCodeIde;
 use ForWP\LMS\Integrations\AdvancedCodeTerminal;
@@ -94,6 +95,7 @@ final class CourseBlocks
 				'renderModuleLessons',
 			],
 			'module-media'   => [__('Module Media', 'lms4wp'), [], 'renderModuleMedia'],
+			'lesson-media'   => [__('Lesson Media', 'lms4wp'), [], 'renderLessonMedia'],
 		];
 
 		foreach ($blocks as $name => [$title, $attributes, $callback]) {
@@ -337,7 +339,7 @@ final class CourseBlocks
 
 		return self::wrapper(
 			'lms4wp-course-media',
-			'<div class="lms4wp-course-media__frame' . (PromoVideo::hasVideo($course_id) ? ' has-video is-' . esc_attr(PromoVideo::get($course_id)['format']) : '') . '">' . $media . '</div>'
+			'<div ' . PromoVideo::frameAttributes($course_id) . '>' . $media . '</div>'
 			. '<div class="lms4wp-course-media__body">'
 			. $youtube
 			. '<p class="lms4wp-course-media__title">' . esc_html__('This course includes', 'lms4wp') . '</p>'
@@ -558,18 +560,19 @@ final class CourseBlocks
 			return '';
 		}
 
-		$crumbs = sprintf(
+		// LMS › Course › Module (same trail as the BreadcrumbList schema).
+		$crumbs = Breadcrumbs::rootLink() . sprintf(
 			'<a class="lms4wp-lesson-context__course" href="%s">%s</a>',
 			esc_url((string) get_permalink($context['course_id'])),
 			esc_html(get_the_title($context['course_id']))
 		);
 		if ($context['module'] && $context['module']['title'] !== '') {
-			$label = $context['module']['number'] > 0
-				/* translators: 1: module number, 2: module title */
-				? sprintf(__('Module %1$d. %2$s', 'lms4wp'), $context['module']['number'], $context['module']['title'])
-				: $context['module']['title'];
+			$label = Breadcrumbs::moduleLabel($context['module']);
+			$module_id = (int) $context['module']['id'];
 			$crumbs .= Icons::svg('chevron-right', 14, 'lms4wp-lesson-context__sep')
-				. '<span class="lms4wp-lesson-context__module">' . esc_html($label) . '</span>';
+				. ($module_id > 0 && get_post_status($module_id) === 'publish'
+					? '<a class="lms4wp-lesson-context__module" href="' . esc_url((string) get_permalink($module_id)) . '">' . esc_html($label) . '</a>'
+					: '<span class="lms4wp-lesson-context__module">' . esc_html($label) . '</span>');
 		}
 
 		// Position + quick previous / next.
@@ -591,6 +594,40 @@ final class CourseBlocks
 		}
 
 		return self::wrapper('lms4wp-lesson-context', '<div class="lms4wp-lesson-context__crumbs">' . $crumbs . '</div>' . $pager, 'nav');
+	}
+
+	/**
+	 * Lesson sidebar media: the lesson's featured image (zoom → lightbox, caption) and the
+	 * video of its module (YouTube or file, same frame as on the module page).
+	 */
+	public static function renderLessonMedia(array $attributes, string $content, \WP_Block $block): string
+	{
+		$lesson_id = self::postId($block);
+		if ($lesson_id === 0) {
+			return '';
+		}
+		// Sidebar image: not the LCP of a lesson — lazy, sized for the sidebar.
+		$html = PromoVideo::renderImage($lesson_id, 'lms4wp-lesson-media__img', 'medium_large', true, [
+			'loading'       => 'lazy',
+			'fetchpriority' => 'low',
+			'sizes'         => '(max-width: 781px) 100vw, 400px',
+		]);
+
+		$context = CourseStructure::lessonContext($lesson_id);
+		$module_id = $context['module'] ? (int) $context['module']['id'] : 0;
+		if ($module_id > 0 && PromoVideo::hasVideo($module_id)) {
+			$html .= '<div class="lms4wp-lesson-media__video">'
+				. '<p class="lms4wp-lesson-media__label">' . esc_html(sprintf(
+					/* translators: %s: module label, e.g. "Module 2. Daily Workflow" */
+					__('Video · %s', 'lms4wp'),
+					Breadcrumbs::moduleLabel($context['module'])
+				)) . '</p>'
+				. '<div ' . PromoVideo::frameAttributes($module_id) . '>' . PromoVideo::renderMedia($module_id) . '</div>'
+				. PromoVideo::renderYoutube($module_id)
+				. '</div>';
+		}
+
+		return $html !== '' ? self::wrapper('lms4wp-lesson-media', $html, 'aside') : '';
 	}
 
 	public static function renderLessonTerminal(array $attributes, string $content, \WP_Block $block): string
@@ -642,7 +679,7 @@ final class CourseBlocks
 		if ($context['module'] === null) {
 			return '';
 		}
-		$html = sprintf(
+		$html = Breadcrumbs::rootLink() . sprintf(
 			'<a class="lms4wp-lesson-context__course" href="%s">%s</a>',
 			esc_url((string) get_permalink($context['course_id'])),
 			esc_html(get_the_title($context['course_id']))
@@ -709,10 +746,7 @@ final class CourseBlocks
 		if ($media === '') {
 			$media = '<div class="lms4wp-course-media__placeholder">' . Icons::svg('layers', 56) . '<span>' . esc_html($module['title']) . '</span></div>';
 		}
-		$video = PromoVideo::get($module_id);
-		$frame_class = 'lms4wp-course-media__frame' . (PromoVideo::hasVideo($module_id) ? ' has-video is-' . $video['format'] : '');
-
-		$html = '<div class="' . esc_attr($frame_class) . '">' . $media . '</div>'
+		$html = '<div ' . PromoVideo::frameAttributes($module_id) . '>' . $media . '</div>'
 			. '<div class="lms4wp-course-media__body">'
 			. PromoVideo::renderYoutube($module_id)
 			. self::moduleContinue($context)

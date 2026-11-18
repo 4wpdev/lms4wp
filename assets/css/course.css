@@ -508,6 +508,15 @@ details[open] > .lms4wp-module__summary .lms4wp-module__chevron {
   font-weight: 600;
   text-decoration: none;
 }
+.lms4wp-lesson-context__root,
+.lms4wp-lesson-context a.lms4wp-lesson-context__module {
+  color: var(--wp--preset--color--primary, #0073aa);
+  text-decoration: none;
+}
+.lms4wp-lesson-context__root:hover,
+.lms4wp-lesson-context a.lms4wp-lesson-context__module:hover {
+  text-decoration: underline;
+}
 .lms4wp-lesson-context__sep {
   color: #5f6368;
   opacity: 0.6;
@@ -731,8 +740,35 @@ details[open] > .lms4wp-module__summary .lms4wp-module__chevron {
   background: var(--wp--preset--color--contrast, #1a1a1a);
 }
 .lms4wp-course-media__frame.has-video.is-short {
+  position: relative;
   display: flex;
   justify-content: center;
+  background: linear-gradient(135deg, var(--wp--preset--color--primary-dark, #005177), var(--wp--preset--color--primary, #0073aa));
+}
+.lms4wp-course-media__frame.has-video.is-short::before {
+  content: "";
+  position: absolute;
+  inset: -24px;
+  background: var(--lms4wp-backdrop, none) center/cover no-repeat;
+  filter: blur(20px) saturate(1.1) brightness(0.8);
+}
+.lms4wp-course-media__frame.has-video.is-short > .lms4wp-promo__video {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
+}
+
+.lms4wp-promo__figure {
+  position: relative;
+  height: 100%;
+  margin: 0;
+}
+
+.lms4wp-promo__caption {
+  margin: 0.5rem 0 0;
+  color: #5f6368;
+  font-size: 0.8125rem;
+  line-height: 1.45;
 }
 
 .lms4wp-promo__video {
@@ -780,6 +816,52 @@ details[open] > .lms4wp-module__summary .lms4wp-module__chevron {
   color: var(--wp--preset--color--primary, #0073aa);
 }
 
+.lms4wp-lesson-media {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+.lms4wp-lesson-media .lms4wp-promo__figure {
+  height: auto;
+}
+.lms4wp-lesson-media__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border: 1px solid var(--wp--preset--color--gray-200, #e5e7eb);
+}
+.lms4wp-lesson-media__label {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.lms4wp-lesson-media .lms4wp-course-media__frame {
+  aspect-ratio: auto;
+}
+.lms4wp-lesson-media .lms4wp-promo__video.is-short {
+  height: min(60vh, 520px);
+}
+.lms4wp-lesson-media .lms4wp-promo__youtube {
+  margin: 0.75rem 0 0;
+}
+
+@media (min-width: 782px) {
+  .lms4wp-lesson__aside:has(.lms4wp-lesson-media) .lms4wp-outline.is-compact {
+    position: static;
+    max-height: none;
+  }
+}
+@media (min-width: 782px) and (min-height: 960px) {
+  .lms4wp-lesson__aside .lms4wp-lesson-media {
+    position: sticky;
+    top: calc(var(--forwp-header-h, 80px) + 1.5rem);
+  }
+  .admin-bar .lms4wp-lesson__aside .lms4wp-lesson-media {
+    top: calc(var(--forwp-header-h, 80px) + 1.5rem + 32px);
+  }
+}
 .lms4wp-module-hero .lms4wp-lesson-context {
   margin: 0;
 }

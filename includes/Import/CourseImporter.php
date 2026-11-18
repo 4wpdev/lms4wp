@@ -188,7 +188,7 @@ final class CourseImporter
 		$faq_attrs = [];
 		$module_posts = [];
 		foreach ($modules as $key => $module) {
-			$module_posts[$key] = $this->findModulePost($module);
+			$module_posts[$key] = $this->findModulePost($module, $course_id);
 		}
 
 		foreach ($package['lessons'] as $lesson) {
@@ -220,6 +220,7 @@ final class CourseImporter
 			);
 			// Module via the shadow taxonomy (also when the file itself did not change).
 			if (!$this->dry_run && !is_wp_error($result) && $result > 0) {
+				$this->applyImage($reader, (int) $result, $lesson['module'] . '/', $lesson['doc']['meta'], $lesson['title']);
 				$module_id = $module_posts[$lesson['module']] ?? 0;
 				if (Module::forLesson((int) $result) !== $module_id) {
 					Module::assignLesson((int) $result, $module_id);
@@ -623,6 +624,7 @@ final class CourseImporter
 		// Same file already attached and no forced update: nothing to download.
 		$current = (int) get_post_thumbnail_id($post_id);
 		if ($current > 0 && !$this->force && get_post_meta($current, self::META_IMAGE_SOURCE, true) === $source) {
+			$this->applyImageText($current, $meta, $title);
 			return;
 		}
 
@@ -647,6 +649,29 @@ final class CourseImporter
 
 		if ($current !== $attachment_id) {
 			set_post_thumbnail($post_id, $attachment_id);
+		}
+		$this->applyImageText($attachment_id, $meta, $title);
+	}
+
+	/**
+	 * Front-matter "image_alt" / "image_caption" → alt text and caption of the featured image.
+	 * Alt falls back to the post title; an empty caption leaves the current one as is.
+	 *
+	 * @param array<string, mixed> $meta Front-matter.
+	 */
+	private function applyImageText(int $attachment_id, array $meta, string $title): void
+	{
+		$alt = sanitize_text_field((string) ($meta['image_alt'] ?? ''));
+		if ($alt === '') {
+			$alt = sanitize_text_field($title);
+		}
+		if ($alt !== '' && get_post_meta($attachment_id, '_wp_attachment_image_alt', true) !== $alt) {
+			update_post_meta($attachment_id, '_wp_attachment_image_alt', $alt);
+		}
+
+		$caption = sanitize_text_field((string) ($meta['image_caption'] ?? ''));
+		if ($caption !== '' && get_post_field('post_excerpt', $attachment_id) !== $caption) {
+			wp_update_post(['ID' => $attachment_id, 'post_excerpt' => $caption]);
 		}
 	}
 
@@ -712,15 +737,33 @@ final class CourseImporter
 	 * Post imported from a source path (0 — none).
 	 */
 	/**
-	 * Module post of a package module (by its page file, then by requirements.md).
+	 * Module post of a package module: by its page file, then by requirements.md, then by course + folder key.
 	 *
-	 * @param array{source: string, legacy_source?: string} $module
+	 * @param array{source: string, legacy_source?: string, key?: string} $module
 	 */
-	private function findModulePost(array $module): int
+	private function findModulePost(array $module, int $course_id = 0): int
 	{
 		$id = $this->findSourcePost(Module::POST_TYPE, $module['source']);
 		if ($id === 0 && !empty($module['legacy_source'])) {
 			$id = $this->findSourcePost(Module::POST_TYPE, (string) $module['legacy_source']);
+		}
+		// Source path differs (module.md ↔ requirements.md): the module of this course by its folder key.
+		if ($id === 0 && $course_id > 0 && !empty($module['key'])) {
+			$ids = get_posts([
+				'post_type'        => Module::POST_TYPE,
+				'post_status'      => 'any',
+				'post_parent'      => $course_id,
+				'meta_key'         => Module::META_KEY,
+				'meta_value'       => (string) $module['key'],
+				'posts_per_page'   => 1,
+				'fields'           => 'ids',
+				'no_found_rows'    => true,
+				'suppress_filters' => true,
+			]);
+			$id = (int) ($ids[0] ?? 0);
+		}
+		if ($id === 0) {
+			($this->log)(sprintf('module  %s: module post not found, lessons stay without a module', $module['source']));
 		}
 		return $id;
 	}

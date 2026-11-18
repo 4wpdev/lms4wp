@@ -59,6 +59,7 @@ class Loader
 		require_once $includes_dir . 'Content/Progress.php';
 		require_once $includes_dir . 'Blocks/CourseBlocks.php';
 		require_once $includes_dir . 'Frontend/CourseTemplates.php';
+		require_once $includes_dir . 'Frontend/Breadcrumbs.php';
 		require_once $includes_dir . 'Integrations/AdvancedCodeTerminal.php';
 		require_once $includes_dir . 'Import/FrontMatter.php';
 		require_once $includes_dir . 'Import/MarkdownBlocks.php';

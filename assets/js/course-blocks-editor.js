@@ -22,6 +22,7 @@
 		'lms4wp/module-context',
 		'lms4wp/module-lessons',
 		'lms4wp/module-media',
+		'lms4wp/lesson-media',
 	];
 
 	names.forEach( function ( name ) {

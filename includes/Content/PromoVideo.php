@@ -139,27 +139,87 @@ final class PromoVideo
 	public static function renderMedia(int $post_id, string $alt_class = 'lms4wp-promo__image'): string
 	{
 		$video = self::get($post_id);
+		$title = get_the_title($post_id);
 		$youtube_id = $video['url'] === '' ? self::youtubeId($video['youtube']) : '';
 		if ($youtube_id !== '') {
+			$embed = 'https://www.youtube-nocookie.com/embed/' . rawurlencode($youtube_id) . '?rel=0&modestbranding=1&playsinline=1';
 			return sprintf(
-				'<figure class="lms4wp-promo__video is-%1$s is-youtube"><iframe src="%2$s" title="%3$s" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></figure>',
+				'<figure class="lms4wp-promo__video is-%1$s is-youtube" data-forwp-media-lightbox-host><iframe src="%2$s" title="%3$s" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>%4$s</figure>',
 				esc_attr($video['format']),
-				esc_url('https://www.youtube-nocookie.com/embed/' . rawurlencode($youtube_id) . '?rel=0&modestbranding=1&playsinline=1'),
-				esc_attr(get_the_title($post_id))
+				// enablejsapi: the lightbox pauses this player when it opens the video fullscreen.
+				esc_url($embed . '&enablejsapi=1'),
+				esc_attr($title),
+				self::lightbox('youtube', $embed, $title, $video['format'])
 			);
 		}
 		if ($video['url'] !== '') {
 			$poster = (string) get_the_post_thumbnail_url($post_id, 'large');
 			return sprintf(
-				'<figure class="lms4wp-promo__video is-%1$s"><video controls playsinline preload="metadata" src="%2$s"%3$s></video></figure>',
+				'<figure class="lms4wp-promo__video is-%1$s" data-forwp-media-lightbox-host><video controls playsinline preload="metadata" src="%2$s"%3$s></video>%4$s</figure>',
 				esc_attr($video['format']),
 				esc_url($video['url']),
-				$poster !== '' ? ' poster="' . esc_url($poster) . '"' : ''
+				$poster !== '' ? ' poster="' . esc_url($poster) . '"' : '',
+				self::lightbox('video', $video['url'], $title, $video['format'])
 			);
 		}
-		return has_post_thumbnail($post_id)
-			? (string) get_the_post_thumbnail($post_id, 'large', ['class' => $alt_class])
-			: '';
+		return self::renderImage($post_id, $alt_class);
+	}
+
+	/**
+	 * Featured image with a zoom button (click → lightbox); '' without a featured image.
+	 */
+	public static function renderImage(int $post_id, string $class = 'lms4wp-promo__image', string $size = 'large', bool $caption = false, array $attr = []): string
+	{
+		$thumbnail_id = (int) get_post_thumbnail_id($post_id);
+		if ($thumbnail_id === 0) {
+			return '';
+		}
+		$image = (string) get_the_post_thumbnail($post_id, $size, ['class' => $class] + $attr);
+		if ($image === '') {
+			return '';
+		}
+		$text = $caption ? (string) wp_get_attachment_caption($thumbnail_id) : '';
+		$alt = (string) get_post_meta($thumbnail_id, '_wp_attachment_image_alt', true);
+		return '<figure class="lms4wp-promo__figure" data-forwp-media-lightbox-host>'
+			. $image
+			. self::lightbox('image', (string) wp_get_attachment_image_url($thumbnail_id, 'full'), $alt !== '' ? $alt : get_the_title($post_id))
+			. ($text !== '' ? '<figcaption class="lms4wp-promo__caption">' . esc_html($text) . '</figcaption>' : '')
+			. '</figure>';
+	}
+
+	/**
+	 * Class + style of the media frame: short video gets the blurred featured image as its backdrop
+	 * (no black bars next to a 9:16 player).
+	 */
+	public static function frameAttributes(int $post_id, string $class = 'lms4wp-course-media__frame'): string
+	{
+		$style = '';
+		if (self::hasVideo($post_id)) {
+			$format = self::get($post_id)['format'];
+			$class .= ' has-video is-' . $format;
+			$backdrop = $format === 'short' ? (string) get_the_post_thumbnail_url($post_id, 'medium_large') : '';
+			if ($backdrop !== '') {
+				$style = '--lms4wp-backdrop:url(' . esc_url($backdrop) . ')';
+			}
+		}
+		return 'class="' . esc_attr($class) . '"' . ($style !== '' ? ' style="' . esc_attr($style) . '"' : '');
+	}
+
+	/**
+	 * Lightbox button from 4wp-smart-link ('' when the plugin is not active).
+	 */
+	private static function lightbox(string $type, string $src, string $title, string $format = ''): string
+	{
+		if ($src === '') {
+			return '';
+		}
+		return (string) apply_filters('forwp_media_lightbox_trigger', '', [
+			'type'     => $type,
+			'src'      => $src,
+			'title'    => $title,
+			'format'   => $type === 'image' ? '' : $format,
+			'position' => $type === 'image' ? 'top' : 'bottom',
+		]);
 	}
 
 	/**
