@@ -201,7 +201,9 @@ final class LessonAccess
 	 */
 	public static function joinForm(int $course_id, string $redirect, string $label): string
 	{
-		return '<form method="post" class="lms4wp-join-form">'
+		// Explicit action without "#hash" (the redirect must not inherit the current fragment).
+		$action = is_singular() ? (string) get_permalink() : $redirect;
+		return '<form method="post" action="' . esc_url(strtok($action, '#')) . '" class="lms4wp-join-form">'
 			. wp_nonce_field('lms4wp_enroll', 'lms4wp_enroll_nonce', true, false)
 			. '<input type="hidden" name="course_id" value="' . esc_attr((string) $course_id) . '">'
 			. '<input type="hidden" name="redirect_to" value="' . esc_url($redirect) . '">'

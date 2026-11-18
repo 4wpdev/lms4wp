@@ -39,7 +39,12 @@ final class FrontMatter
 			}
 			$value = trim($kv[2]);
 			if (strlen($value) >= 2 && ($value[0] === '"' || $value[0] === "'") && substr($value, -1) === $value[0]) {
+				$quote = $value[0];
 				$value = substr($value, 1, -1);
+				// YAML escapes: \" and \\ inside "…", '' inside '…'.
+				$value = $quote === '"'
+					? strtr($value, ['\\"' => '"', '\\\\' => '\\'])
+					: str_replace("''", "'", $value);
 			}
 			$meta[strtolower($kv[1])] = $value;
 		}

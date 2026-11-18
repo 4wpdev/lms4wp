@@ -11,10 +11,15 @@
 
 			<!-- wp:group {"className":"lms4wp-course-hero","layout":{"type":"default"}} -->
 			<div class="wp-block-group lms4wp-course-hero">
+				<!-- wp:lms4wp/course-context /-->
 				<!-- wp:post-title {"level":1,"className":"lms4wp-course-hero__title"} /-->
 				<!-- wp:post-excerpt {"moreText":"","className":"lms4wp-course-hero__lead"} /-->
-				<!-- wp:lms4wp/course-meta /-->
-				<!-- wp:post-terms {"term":"lms_tag","separator":" ","className":"lms4wp-terms lms4wp-terms__tags"} /-->
+				<!-- wp:group {"className":"lms4wp-course-hero__facts","layout":{"type":"default"}} -->
+				<div class="wp-block-group lms4wp-course-hero__facts">
+					<!-- wp:lms4wp/course-meta /-->
+					<!-- wp:post-terms {"term":"lms_tag","separator":" ","className":"lms4wp-terms lms4wp-terms__tags"} /-->
+				</div>
+				<!-- /wp:group -->
 				<!-- wp:lms4wp/course-join /-->
 			</div>
 			<!-- /wp:group -->
@@ -23,6 +28,7 @@
 			<div class="wp-block-group lms4wp-course-body">
 				<!-- wp:post-content /-->
 				<!-- wp:lms4wp/course-outline /-->
+				<!-- wp:lms4wp/course-cta /-->
 			</div>
 			<!-- /wp:group -->
 

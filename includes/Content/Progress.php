@@ -132,6 +132,28 @@ final class Progress
 	}
 
 	/**
+	 * Retake: clear the learner's progress in a course (enrollment stays).
+	 */
+	public static function reset(int $user_id, int $course_id): bool
+	{
+		if ($user_id <= 0 || $course_id <= 0) {
+			return false;
+		}
+		global $wpdb;
+		$result = $wpdb->delete(self::table(), ['user_id' => $user_id, 'course_id' => $course_id], ['%d', '%d']);
+		$wpdb->update(
+			$wpdb->prefix . 'lms4wp_enrollments',
+			['completed_at' => null],
+			['user_id' => $user_id, 'course_id' => $course_id],
+			['%s'],
+			['%d', '%d']
+		);
+		unset(self::$cache[$user_id . ':' . $course_id]);
+		do_action('lms4wp_course_retake', $user_id, $course_id);
+		return $result !== false;
+	}
+
+	/**
 	 * @return array{completed: int, total: int, percent: int, next: ?\WP_Post}
 	 */
 	public static function summary(int $user_id, int $course_id): array
@@ -191,9 +213,15 @@ final class Progress
 
 		self::complete($user_id, $lesson_id);
 		$context = CourseStructure::lessonContext($lesson_id);
-		$target = $context['next']
-			? (string) get_permalink($context['next'])
-			: (string) get_permalink($context['course_id']);
+		$summary = self::summary($user_id, $context['course_id']);
+		if ($summary['total'] > 0 && $summary['next'] === null) {
+			// Whole course done → completion page.
+			$target = CourseCompletion::url($context['course_id']);
+		} else {
+			$target = $context['next']
+				? (string) get_permalink($context['next'])
+				: (string) get_permalink($summary['next'] ?? $context['course_id']);
+		}
 		wp_safe_redirect($target);
 		exit;
 	}

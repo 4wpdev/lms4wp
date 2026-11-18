@@ -11,6 +11,7 @@ namespace ForWP\LMS\Import;
 use ForWP\LMS\PostTypes\Course;
 use ForWP\LMS\PostTypes\Lesson;
 use ForWP\LMS\PostTypes\Module;
+use ForWP\LMS\Content\CourseCompletion;
 use ForWP\LMS\Content\CourseStructure;
 use ForWP\LMS\Content\PromoVideo;
 
@@ -36,6 +37,7 @@ final class CourseImporter
 	const FAQ_SECTIONS   = ["Питання з інтерв'ю", 'Interview Questions', 'FAQ'];
 
 	const COURSE_FILE = 'course-structure.md';
+	const COMPLETION_FILE = 'completion.md'; // Course completion page (optional).
 	const MODULE_FILE = 'requirements.md';
 	const MODULE_PAGE_FILE = 'module.md'; // Public module page (landing); requirements.md stays internal.
 	const TERMINAL_FILE = 'terminal.json';
@@ -133,6 +135,7 @@ final class CourseImporter
 			}
 
 			if (!$this->dry_run && $course_id > 0) {
+				$this->applyCompletion($course_id, $course['completion']);
 				update_post_meta($course_id, self::META_SOURCE_COMMIT, $this->commit);
 				$this->applyImage($reader, $course_id, '', $course['doc']['meta'], $course['title']);
 			}
@@ -222,7 +225,8 @@ final class CourseImporter
 			if (!$this->dry_run && !is_wp_error($result) && $result > 0) {
 				$this->applyImage($reader, (int) $result, $lesson['module'] . '/', $lesson['doc']['meta'], $lesson['title']);
 				$module_id = $module_posts[$lesson['module']] ?? 0;
-				if (Module::forLesson((int) $result) !== $module_id) {
+				// Never take a lesson out of its module when the module post was not found.
+				if ($module_id > 0 && Module::forLesson((int) $result) !== $module_id) {
 					Module::assignLesson((int) $result, $module_id);
 				}
 			}
@@ -231,6 +235,10 @@ final class CourseImporter
 			}
 		}
 
+		// Full import (CLI): re-link lessons to modules in one pass at the end.
+		if ($only_module === null) {
+			$this->repairLessonModules($course_id);
+		}
 		CourseStructure::flush();
 
 		return [
@@ -263,7 +271,7 @@ final class CourseImporter
 		$expected = array_merge([$package['course']], $package['modules'], $package['lessons']);
 		$module_posts = [];
 		foreach ($package['modules'] as $module) {
-			$module_posts[$module['key']] = $site[$module['source']] ?? 0;
+			$module_posts[$module['key']] = $site[$module['source']] ?? $this->findModuleByKey($module['key'], $course_id);
 		}
 
 		foreach ($expected as $item) {
@@ -438,12 +446,22 @@ final class CourseImporter
 		if (is_wp_error($doc)) {
 			return $doc;
 		}
+		// Completion page: part of the course item (its hash re-imports the course when it changes).
+		$completion = null;
+		if (in_array(self::COMPLETION_FILE, $files, true)) {
+			$completion = $this->readDoc($reader, self::COMPLETION_FILE);
+			if (is_wp_error($completion)) {
+				return $completion;
+			}
+			$doc['hash'] = sha1($doc['hash'] . '|' . $completion['hash']);
+		}
 		$title = trim(explode(' — ', $doc['meta']['title'] ?? '')[0]);
 
 		$course = [
-			'source' => $slug . '/' . self::COURSE_FILE,
-			'title'  => $title !== '' ? $title : $slug,
-			'doc'    => $doc,
+			'source'     => $slug . '/' . self::COURSE_FILE,
+			'title'      => $title !== '' ? $title : $slug,
+			'doc'        => $doc,
+			'completion' => $completion,
 		];
 
 		// Index: module-<N>-<slug>/<file>.
@@ -550,9 +568,9 @@ final class CourseImporter
 				'terminal' => $terminal,
 				'ide'      => $ide,
 				'page'     => ['meta' => $page_doc['meta'], 'body' => $page_doc['body']],
-				// Hash covers requirements.md, module.md, terminal.json and ide.json; "page-v2" re-imports module pages
-				// once for SEO meta from module.md (1.15.0).
-				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json) . ($raw_ide !== '' ? '|' . sha1($raw_ide) : '') . ($has_page ? '|' . $page_doc['hash'] . '|page-v2' : ''))],
+				// Hash covers requirements.md, module.md, terminal.json and ide.json; "page-v3" re-imports module pages
+				// once (1.15.0 SEO meta; 1.16.1 unescaped front-matter quotes).
+				'doc'      => ['meta' => $module_doc['meta'], 'body' => $module_doc['body'], 'hash' => sha1($module_doc['hash'] . '|' . sha1((string) $raw_json) . ($raw_ide !== '' ? '|' . sha1($raw_ide) : '') . ($has_page ? '|' . $page_doc['hash'] . '|page-v3' : ''))],
 			];
 
 			if (!$with_lessons) {
@@ -749,23 +767,99 @@ final class CourseImporter
 		}
 		// Source path differs (module.md ↔ requirements.md): the module of this course by its folder key.
 		if ($id === 0 && $course_id > 0 && !empty($module['key'])) {
-			$ids = get_posts([
-				'post_type'        => Module::POST_TYPE,
-				'post_status'      => 'any',
-				'post_parent'      => $course_id,
-				'meta_key'         => Module::META_KEY,
-				'meta_value'       => (string) $module['key'],
-				'posts_per_page'   => 1,
-				'fields'           => 'ids',
-				'no_found_rows'    => true,
-				'suppress_filters' => true,
-			]);
-			$id = (int) ($ids[0] ?? 0);
+			$id = $this->findModuleByKey((string) $module['key'], $course_id);
 		}
 		if ($id === 0) {
-			($this->log)(sprintf('module  %s: module post not found, lessons stay without a module', $module['source']));
+			($this->log)(sprintf('module  %s: module post not found, lessons keep their module', $module['source']));
 		}
 		return $id;
+	}
+
+	/**
+	 * completion.md → course meta (title, excerpt, blocks, next course slugs); no file → removed.
+	 *
+	 * @param array{meta: array<string, string>, body: string}|null $doc
+	 */
+	private function applyCompletion(int $course_id, ?array $doc): void
+	{
+		if ($doc === null) {
+			delete_post_meta($course_id, CourseCompletion::META);
+			return;
+		}
+		$body = (string) preg_replace('/\A\s*#\s+[^\n]*\n/', '', $doc['body']); // H1 = page title.
+		update_post_meta($course_id, CourseCompletion::META, wp_slash([
+			'title'   => (string) ($doc['meta']['title'] ?? ''),
+			'excerpt' => (string) ($doc['meta']['excerpt'] ?? ''),
+			'content' => MarkdownBlocks::convert($body),
+			'next'    => FrontMatter::listValue((string) ($doc['meta']['next'] ?? '')),
+		]));
+	}
+
+	/**
+	 * Module post of a course by its folder key (module-3-branching); 0 — none.
+	 */
+	private function findModuleByKey(string $key, int $course_id): int
+	{
+		if ($key === '' || $course_id <= 0) {
+			return 0;
+		}
+		$ids = get_posts([
+			'post_type'        => Module::POST_TYPE,
+			'post_status'      => 'any',
+			'post_parent'      => $course_id,
+			'meta_key'         => Module::META_KEY,
+			'meta_value'       => $key,
+			'orderby'          => 'ID',
+			'order'            => 'ASC',
+			'posts_per_page'   => 1,
+			'fields'           => 'ids',
+			'no_found_rows'    => true,
+			'suppress_filters' => true,
+		]);
+		return (int) ($ids[0] ?? 0);
+	}
+
+	/**
+	 * Re-link every lesson of a course to its module by the folder in its source path
+	 * (course/module-N-x/lesson.md). Runs once all module jobs are done, so parallel jobs
+	 * or a partial file list can never leave lessons without a module.
+	 *
+	 * @return int Lessons re-linked.
+	 */
+	public function repairLessonModules(int $course_id): int
+	{
+		if ($course_id <= 0 || $this->dry_run) {
+			return 0;
+		}
+		$lessons = get_posts([
+			'post_type'        => Lesson::POST_TYPE,
+			'post_status'      => 'any',
+			'posts_per_page'   => -1,
+			'fields'           => 'ids',
+			'meta_key'         => self::META_COURSE_ID,
+			'meta_value'       => $course_id,
+			'no_found_rows'    => true,
+			'suppress_filters' => true,
+		]);
+		$modules = [];
+		$fixed = 0;
+		foreach ($lessons as $lesson_id) {
+			$source = (string) get_post_meta((int) $lesson_id, self::META_SOURCE, true);
+			if (!preg_match('#/(module-\d+-[^/]+)/[^/]+$#', $source, $m)) {
+				continue;
+			}
+			$modules[$m[1]] ??= $this->findModuleByKey($m[1], $course_id);
+			$module_id = $modules[$m[1]];
+			if ($module_id > 0 && Module::forLesson((int) $lesson_id) !== $module_id) {
+				Module::assignLesson((int) $lesson_id, $module_id);
+				($this->log)(sprintf('module  %s (#%d) → module #%d', $source, $lesson_id, $module_id));
+				$fixed++;
+			}
+		}
+		if ($fixed > 0) {
+			CourseStructure::flush();
+		}
+		return $fixed;
 	}
 
 	private function findSourcePost(string $post_type, string $source): int
@@ -905,6 +999,17 @@ final class CourseImporter
 			// Module that got a module.md: keep the post imported from requirements.md.
 			if ($post_id === 0 && !empty($item['legacy_source']) && $item['legacy_source'] !== $source) {
 				$post_id = $this->findSourcePost($post_type, (string) $item['legacy_source']);
+			}
+			// Module identity = course + folder key: a partial file list (module.md not listed) must not
+			// create a second module post (its new term would take the lessons away from the real one).
+			if ($post_id === 0 && $post_type === Module::POST_TYPE && !empty($item['key'])) {
+				$post_id = $this->findModuleByKey((string) $item['key'], (int) ($postarr['post_parent'] ?? 0));
+				$current = $post_id > 0 ? (string) get_post_meta($post_id, self::META_SOURCE, true) : '';
+				if ($current !== '' && str_ends_with($current, '/' . self::MODULE_PAGE_FILE) && !str_ends_with($source, '/' . self::MODULE_PAGE_FILE)) {
+					($this->log)(sprintf('warn    %s: module.md not in the file list, module #%d kept as is', $source, $post_id));
+					$this->stats['skipped']++;
+					return $post_id;
+				}
 			}
 		}
 

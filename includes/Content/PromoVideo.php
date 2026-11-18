@@ -188,6 +188,21 @@ final class PromoVideo
 	}
 
 	/**
+	 * Lightbox button that opens the post's video (YouTube or file); '' without a video or 4wp-smart-link.
+	 */
+	public static function lightboxTrigger(int $post_id, string $label = ''): string
+	{
+		$video = self::get($post_id);
+		$title = get_the_title($post_id);
+		$youtube_id = $video['url'] === '' ? self::youtubeId($video['youtube']) : '';
+		if ($youtube_id !== '') {
+			$src = 'https://www.youtube-nocookie.com/embed/' . rawurlencode($youtube_id) . '?rel=0&modestbranding=1&playsinline=1';
+			return self::lightbox('youtube', $src, $title, $video['format'], $label);
+		}
+		return $video['url'] !== '' ? self::lightbox('video', $video['url'], $title, $video['format'], $label) : '';
+	}
+
+	/**
 	 * Class + style of the media frame: short video gets the blurred featured image as its backdrop
 	 * (no black bars next to a 9:16 player).
 	 */
@@ -208,7 +223,7 @@ final class PromoVideo
 	/**
 	 * Lightbox button from 4wp-smart-link ('' when the plugin is not active).
 	 */
-	private static function lightbox(string $type, string $src, string $title, string $format = ''): string
+	private static function lightbox(string $type, string $src, string $title, string $format = '', string $label = ''): string
 	{
 		if ($src === '') {
 			return '';
@@ -219,7 +234,7 @@ final class PromoVideo
 			'title'    => $title,
 			'format'   => $type === 'image' ? '' : $format,
 			'position' => $type === 'image' ? 'top' : 'bottom',
-		]);
+		] + ($label !== '' ? ['label' => $label] : []));
 	}
 
 	/**

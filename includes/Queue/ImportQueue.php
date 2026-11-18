@@ -159,6 +159,8 @@ final class ImportQueue
 		}
 
 		$state = self::state($slug);
+		// Module jobs run in parallel: link every lesson to its module once they are all done.
+		$importer->repairLessonModules((int) ($state['course_id'] ?? CourseImporter::findCourseId($slug)));
 		$verify = $importer->verify($reader);
 		$issues = is_wp_error($verify) ? [$verify->get_error_message()] : $verify['issues'];
 		$final = $pending > 0 || (int) ($state['failed'] ?? 0) > 0 || $issues ? 'failed' : 'done';

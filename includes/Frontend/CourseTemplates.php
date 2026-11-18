@@ -36,6 +36,11 @@ final class CourseTemplates
 				__('Course landing page: hero, description, program, join button.', 'lms4wp'),
 				Course::POST_TYPE,
 			],
+			'single-' . Course::POST_TYPE . '-completed' => [
+				__('Course Completed', 'lms4wp'),
+				__('Course completion page: thank you, retake, what to learn next.', 'lms4wp'),
+				Course::POST_TYPE,
+			],
 			'single-' . Lesson::POST_TYPE => [
 				__('Single Lesson', 'lms4wp'),
 				__('Lesson page: course context, content, previous / next, course outline.', 'lms4wp'),
